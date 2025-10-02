@@ -6,10 +6,7 @@ import '../../providers/settings_provider.dart';
 class WeatherDetails extends StatelessWidget {
   final WeatherData weatherData;
 
-  const WeatherDetails({
-    super.key,
-    required this.weatherData,
-  });
+  const WeatherDetails({super.key, required this.weatherData});
 
   @override
   Widget build(BuildContext context) {
@@ -24,9 +21,9 @@ class WeatherDetails extends StatelessWidget {
             children: [
               Text(
                 'Weather Details',
-                style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                  fontWeight: FontWeight.bold,
-                ),
+                style: Theme.of(
+                  context,
+                ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
               ),
               const SizedBox(height: 16),
               GridView.count(
@@ -97,31 +94,32 @@ class WeatherDetails extends StatelessWidget {
     );
   }
 
-  Widget _buildDetailCard(BuildContext context, String title, String value, IconData icon) {
+  Widget _buildDetailCard(
+    BuildContext context,
+    String title,
+    String value,
+    IconData icon,
+  ) {
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(12),
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(
-              icon,
-              size: 24,
-              color: Theme.of(context).primaryColor,
-            ),
+            Icon(icon, size: 24, color: Theme.of(context).primaryColor),
             const SizedBox(height: 8),
             Text(
               value,
-              style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                fontWeight: FontWeight.bold,
-              ),
+              style: Theme.of(
+                context,
+              ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
               textAlign: TextAlign.center,
             ),
             const SizedBox(height: 4),
             Text(
               title,
               style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                color: Colors.grey[600],
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
               ),
               textAlign: TextAlign.center,
             ),

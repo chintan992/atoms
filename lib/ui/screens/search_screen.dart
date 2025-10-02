@@ -59,6 +59,9 @@ class _SearchScreenState extends State<SearchScreen> {
                 ),
                 filled: true,
                 fillColor: Theme.of(context).cardColor,
+                hintStyle: TextStyle(
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+                ),
               ),
               onSubmitted: (value) {
                 if (value.trim().isNotEmpty) {
@@ -128,9 +131,8 @@ class _SearchScreenState extends State<SearchScreen> {
     showDialog(
       context: context,
       barrierDismissible: false,
-      builder: (BuildContext context) => const Center(
-        child: CircularProgressIndicator(),
-      ),
+      builder: (BuildContext context) =>
+          const Center(child: CircularProgressIndicator()),
     );
 
     try {
@@ -166,4 +168,4 @@ class _SearchScreenState extends State<SearchScreen> {
       }
     }
   }
-  }
+}

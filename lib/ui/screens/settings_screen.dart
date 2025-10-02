@@ -19,9 +19,7 @@ class SettingsScreen extends StatelessWidget {
       body: Consumer<SettingsProvider>(
         builder: (context, settingsProvider, child) {
           if (settingsProvider.isLoading) {
-            return const Center(
-              child: CircularProgressIndicator(),
-            );
+            return const Center(child: CircularProgressIndicator());
           }
 
           return ListView(
@@ -44,7 +42,7 @@ class SettingsScreen extends StatelessWidget {
                       Text(
                         'Choose your preferred temperature unit',
                         style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                          color: Colors.grey[600],
+                          color: Theme.of(context).colorScheme.onSurfaceVariant,
                         ),
                       ),
                       const SizedBox(height: 16),
@@ -56,8 +54,11 @@ class SettingsScreen extends StatelessWidget {
                               'Celsius',
                               '°C',
                               TemperatureUnit.celsius,
-                              settingsProvider.temperatureUnit == TemperatureUnit.celsius,
-                              () => settingsProvider.setTemperatureUnit(TemperatureUnit.celsius),
+                              settingsProvider.temperatureUnit ==
+                                  TemperatureUnit.celsius,
+                              () => settingsProvider.setTemperatureUnit(
+                                TemperatureUnit.celsius,
+                              ),
                             ),
                           ),
                           const SizedBox(width: 12),
@@ -67,8 +68,11 @@ class SettingsScreen extends StatelessWidget {
                               'Fahrenheit',
                               '°F',
                               TemperatureUnit.fahrenheit,
-                              settingsProvider.temperatureUnit == TemperatureUnit.fahrenheit,
-                              () => settingsProvider.setTemperatureUnit(TemperatureUnit.fahrenheit),
+                              settingsProvider.temperatureUnit ==
+                                  TemperatureUnit.fahrenheit,
+                              () => settingsProvider.setTemperatureUnit(
+                                TemperatureUnit.fahrenheit,
+                              ),
                             ),
                           ),
                         ],
@@ -147,8 +151,8 @@ class SettingsScreen extends StatelessWidget {
               symbol,
               style: Theme.of(context).textTheme.displaySmall?.copyWith(
                 color: isSelected
-                    ? Theme.of(context).primaryColor
-                    : Colors.grey,
+                    ? Theme.of(context).colorScheme.primary
+                    : Theme.of(context).colorScheme.onSurfaceVariant,
                 fontWeight: FontWeight.bold,
               ),
             ),
@@ -157,8 +161,8 @@ class SettingsScreen extends StatelessWidget {
               title,
               style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                 color: isSelected
-                    ? Theme.of(context).primaryColor
-                    : Colors.grey,
+                    ? Theme.of(context).colorScheme.primary
+                    : Theme.of(context).colorScheme.onSurfaceVariant,
                 fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
               ),
             ),

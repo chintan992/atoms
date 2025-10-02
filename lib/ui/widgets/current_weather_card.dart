@@ -6,10 +6,7 @@ import '../../providers/settings_provider.dart';
 class CurrentWeatherCard extends StatelessWidget {
   final WeatherData weatherData;
 
-  const CurrentWeatherCard({
-    super.key,
-    required this.weatherData,
-  });
+  const CurrentWeatherCard({super.key, required this.weatherData});
 
   @override
   Widget build(BuildContext context) {
@@ -35,15 +32,22 @@ class CurrentWeatherCard extends StatelessWidget {
                         children: [
                           Text(
                             location.name,
-                            style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                              fontWeight: FontWeight.bold,
-                            ),
+                            style: Theme.of(context).textTheme.headlineSmall
+                                ?.copyWith(
+                                  fontWeight: FontWeight.bold,
+                                  color: Theme.of(
+                                    context,
+                                  ).colorScheme.onSurface,
+                                ),
                           ),
                           Text(
                             '${location.region}, ${location.country}',
-                            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                              color: Colors.grey[600],
-                            ),
+                            style: Theme.of(context).textTheme.bodyMedium
+                                ?.copyWith(
+                                  color: Theme.of(
+                                    context,
+                                  ).colorScheme.onSurfaceVariant,
+                                ),
                           ),
                         ],
                       ),
@@ -51,7 +55,7 @@ class CurrentWeatherCard extends StatelessWidget {
                     Text(
                       _formatTime(location.localtime),
                       style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        color: Colors.grey[600],
+                        color: Theme.of(context).colorScheme.onSurfaceVariant,
                       ),
                     ),
                   ],
@@ -71,10 +75,11 @@ class CurrentWeatherCard extends StatelessWidget {
                               current.tempC,
                               current.tempF,
                             ),
-                            style: Theme.of(context).textTheme.displayLarge?.copyWith(
-                              fontWeight: FontWeight.bold,
-                              color: Theme.of(context).primaryColor,
-                            ),
+                            style: Theme.of(context).textTheme.displayLarge
+                                ?.copyWith(
+                                  fontWeight: FontWeight.bold,
+                                  color: Theme.of(context).primaryColor,
+                                ),
                           ),
                           const SizedBox(height: 8),
                           Text(
@@ -84,9 +89,8 @@ class CurrentWeatherCard extends StatelessWidget {
                           const SizedBox(height: 4),
                           Text(
                             'Feels like ${settingsProvider.getTemperatureDisplay(current.feelslikeC, current.feelslikeF)}',
-                            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                              color: Colors.grey[600],
-                            ),
+                            style: Theme.of(context).textTheme.bodyMedium
+                                ?.copyWith(color: Colors.grey[600]),
                           ),
                         ],
                       ),
@@ -142,7 +146,12 @@ class CurrentWeatherCard extends StatelessWidget {
     );
   }
 
-  Widget _buildInfoChip(BuildContext context, IconData icon, String value, String label) {
+  Widget _buildInfoChip(
+    BuildContext context,
+    IconData icon,
+    String value,
+    String label,
+  ) {
     return Expanded(
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
@@ -156,15 +165,15 @@ class CurrentWeatherCard extends StatelessWidget {
             const SizedBox(height: 4),
             Text(
               value,
-              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                fontWeight: FontWeight.bold,
-              ),
+              style: Theme.of(
+                context,
+              ).textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.bold),
             ),
             Text(
               label,
-              style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                color: Colors.grey[600],
-              ),
+              style: Theme.of(
+                context,
+              ).textTheme.bodySmall?.copyWith(color: Colors.grey[600]),
             ),
           ],
         ),

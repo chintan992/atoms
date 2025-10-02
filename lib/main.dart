@@ -26,7 +26,9 @@ void main() async {
 }
 
 void _setupWidgetMethodChannel() {
-  const MethodChannel channel = MethodChannel('com.example.atmos/weather_widget');
+  const MethodChannel channel = MethodChannel(
+    'com.example.atmos/weather_widget',
+  );
 
   channel.setMethodCallHandler((MethodCall call) async {
     switch (call.method) {
@@ -141,14 +143,25 @@ class AtmosWeatherApp extends StatelessWidget {
         title: AppConfig.appName,
         debugShowCheckedModeBanner: false,
         theme: ThemeData(
-          colorScheme: ColorScheme.fromSeed(
-            seedColor: Colors.blue,
-            brightness: Brightness.light,
-          ),
           useMaterial3: true,
+          colorScheme:
+              ColorScheme.fromSeed(
+                seedColor: Colors.blue,
+                brightness: Brightness.light,
+              ).copyWith(
+                onSurface: const Color(0xFF000000), // High contrast text
+                onSurfaceVariant: const Color(
+                  0xFF49454F,
+                ), // Better contrast for secondary text
+                outline: const Color(
+                  0xFF79747E,
+                ), // Better contrast for outlines
+              ),
           appBarTheme: const AppBarTheme(
             elevation: 0,
             centerTitle: true,
+            foregroundColor: Color(0xFF000000), // Ensure title is high contrast
+            backgroundColor: Color(0xFFFFFFFF), // Explicit white background
           ),
           cardTheme: CardThemeData(
             elevation: 4,
@@ -156,17 +169,37 @@ class AtmosWeatherApp extends StatelessWidget {
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(16),
             ),
+            color: const Color(0xFFFFFFFF), // Explicit white background
+          ),
+          textTheme: ThemeData().textTheme.apply(
+            bodyColor: const Color(0xFF000000),
+            displayColor: const Color(0xFF000000),
           ),
         ),
         darkTheme: ThemeData(
-          colorScheme: ColorScheme.fromSeed(
-            seedColor: Colors.blue,
-            brightness: Brightness.dark,
-          ),
           useMaterial3: true,
+          colorScheme:
+              ColorScheme.fromSeed(
+                seedColor: Colors.blue,
+                brightness: Brightness.dark,
+              ).copyWith(
+                onSurface: const Color(
+                  0xFFFFFFFF,
+                ), // High contrast text for dark theme
+                onSurfaceVariant: const Color(
+                  0xFFCAC4D0,
+                ), // Better contrast for secondary text in dark theme
+                outline: const Color(
+                  0xFF938F99,
+                ), // Better contrast for outlines in dark theme
+              ),
           appBarTheme: const AppBarTheme(
             elevation: 0,
             centerTitle: true,
+            foregroundColor: Color(
+              0xFFFFFFFF,
+            ), // Ensure title is high contrast in dark theme
+            backgroundColor: Color(0xFF1C1B1F), // Explicit dark background
           ),
           cardTheme: CardThemeData(
             elevation: 4,
@@ -174,6 +207,13 @@ class AtmosWeatherApp extends StatelessWidget {
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(16),
             ),
+            color: const Color(
+              0xFF1C1B1F,
+            ), // Explicit dark background for cards
+          ),
+          textTheme: ThemeData(brightness: Brightness.dark).textTheme.apply(
+            bodyColor: const Color(0xFFFFFFFF),
+            displayColor: const Color(0xFFFFFFFF),
           ),
         ),
         themeMode: _getThemeMode(AppConfig.themeMode),
