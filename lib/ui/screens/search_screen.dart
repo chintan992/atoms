@@ -1,6 +1,10 @@
+import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../providers/weather_provider.dart';
+import '../widgets/glass_container.dart';
+import '../widgets/glass_app_bar.dart';
+import '../widgets/weather_background.dart';
 
 class SearchScreen extends StatefulWidget {
   const SearchScreen({super.key});
@@ -27,100 +31,191 @@ class _SearchScreenState extends State<SearchScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Search Location'),
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back),
-          onPressed: () => Navigator.of(context).pop(),
+    final weatherProvider = context.watch<WeatherProvider>();
+    
+    // Determine weather condition for background
+    WeatherCondition condition = WeatherCondition.clear;
+    if (weatherProvider.state == WeatherState.loaded &&
+        weatherProvider.weatherData != null) {
+      condition = WeatherBackground.getConditionFromCode(
+        weatherProvider.weatherData!.current.condition.code,
+        weatherProvider.weatherData!.current.isDay == 1,
+      );
+    }
+
+    return WeatherBackground(
+      condition: condition,
+      child: Scaffold(
+        backgroundColor: Colors.transparent,
+        extendBodyBehindAppBar: true,
+        appBar: GlassAppBar(
+          title: 'Search Location',
+          leading: IconButton(
+            icon: const Icon(Icons.arrow_back),
+            onPressed: () => Navigator.of(context).pop(),
+          ),
         ),
-      ),
-      body: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          children: [
-            // Search field
-            TextField(
-              controller: _searchController,
-              decoration: InputDecoration(
-                hintText: 'Enter city name...',
-                prefixIcon: const Icon(Icons.search),
-                suffixIcon: _searchController.text.isNotEmpty
-                    ? IconButton(
-                        icon: const Icon(Icons.clear),
-                        onPressed: () {
-                          _searchController.clear();
+        body: SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              children: [
+                const SizedBox(height: 8),
+                // Search field with glass effect
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(16),
+                  child: BackdropFilter(
+                    filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+                    child: Container(
+                      decoration: BoxDecoration(
+                        color: Colors.white.withValues(alpha: 0.15),
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(
+                          color: Colors.white.withValues(alpha: 0.2),
+                          width: 1.5,
+                        ),
+                      ),
+                      child: TextField(
+                        controller: _searchController,
+                        style: const TextStyle(color: Colors.white),
+                        decoration: InputDecoration(
+                          hintText: 'Enter city name...',
+                          hintStyle: TextStyle(
+                            color: Colors.white.withValues(alpha: 0.6),
+                          ),
+                          prefixIcon: const Icon(
+                            Icons.search,
+                            color: Colors.white,
+                          ),
+                          suffixIcon: _searchController.text.isNotEmpty
+                              ? IconButton(
+                                  icon: const Icon(
+                                    Icons.clear,
+                                    color: Colors.white,
+                                  ),
+                                  onPressed: () {
+                                    _searchController.clear();
+                                    setState(() {});
+                                  },
+                                )
+                              : null,
+                          border: InputBorder.none,
+                          contentPadding: const EdgeInsets.symmetric(
+                            horizontal: 16,
+                            vertical: 16,
+                          ),
+                        ),
+                        onSubmitted: (value) {
+                          if (value.trim().isNotEmpty) {
+                            _searchLocation(value.trim());
+                          }
+                        },
+                        onChanged: (value) {
                           setState(() {});
                         },
-                      )
-                    : null,
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
+                      ),
+                    ),
+                  ),
                 ),
-                filled: true,
-                fillColor: Theme.of(context).cardColor,
-                hintStyle: TextStyle(
-                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+                const SizedBox(height: 16),
+
+                // Search button with glass effect
+                GlassContainer(
+                  blur: 10,
+                  opacity: 0.2,
+                  borderRadius: BorderRadius.circular(16),
+                  padding: EdgeInsets.zero,
+                  width: double.infinity,
+                  child: Material(
+                    color: Colors.transparent,
+                    child: InkWell(
+                      onTap: _searchController.text.trim().isNotEmpty
+                          ? () => _searchLocation(_searchController.text.trim())
+                          : null,
+                      borderRadius: BorderRadius.circular(16),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(vertical: 16),
+                        alignment: Alignment.center,
+                        child: Text(
+                          'Search',
+                          style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                            color: _searchController.text.trim().isNotEmpty
+                                ? Colors.white
+                                : Colors.white.withValues(alpha: 0.5),
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
                 ),
-              ),
-              onSubmitted: (value) {
-                if (value.trim().isNotEmpty) {
-                  _searchLocation(value.trim());
-                }
-              },
-            ),
-            const SizedBox(height: 16),
+                const SizedBox(height: 24),
 
-            // Search button
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton(
-                onPressed: _searchController.text.trim().isNotEmpty
-                    ? () => _searchLocation(_searchController.text.trim())
-                    : null,
-                child: const Text('Search'),
-              ),
-            ),
-            const SizedBox(height: 24),
-
-            // Recent searches
-            if (_recentSearches.isNotEmpty) ...[
-              Row(
-                children: [
-                  Text(
-                    'Recent Searches',
-                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                      fontWeight: FontWeight.bold,
+                // Recent searches
+                if (_recentSearches.isNotEmpty) ...[
+                  Row(
+                    children: [
+                      Padding(
+                        padding: const EdgeInsets.only(left: 8),
+                        child: Text(
+                          'Recent Searches',
+                          style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                            fontWeight: FontWeight.bold,
+                            color: Colors.white,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  Expanded(
+                    child: ListView.builder(
+                      itemCount: _recentSearches.length,
+                      itemBuilder: (context, index) {
+                        final location = _recentSearches[index];
+                        return Padding(
+                          padding: const EdgeInsets.only(bottom: 8),
+                          child: GlassContainer(
+                            blur: 8,
+                            opacity: 0.12,
+                            borderRadius: BorderRadius.circular(16),
+                            padding: EdgeInsets.zero,
+                            margin: EdgeInsets.zero,
+                            child: ListTile(
+                              leading: Icon(
+                                Icons.history,
+                                color: Colors.white.withValues(alpha: 0.8),
+                              ),
+                              title: Text(
+                                location,
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontWeight: FontWeight.w500,
+                                ),
+                              ),
+                              trailing: IconButton(
+                                icon: Icon(
+                                  Icons.close,
+                                  size: 20,
+                                  color: Colors.white.withValues(alpha: 0.6),
+                                ),
+                                onPressed: () {
+                                  setState(() {
+                                    _recentSearches.removeAt(index);
+                                  });
+                                },
+                              ),
+                              onTap: () => _searchLocation(location),
+                            ),
+                          ),
+                        );
+                      },
                     ),
                   ),
                 ],
-              ),
-              const SizedBox(height: 8),
-              Expanded(
-                child: ListView.builder(
-                  itemCount: _recentSearches.length,
-                  itemBuilder: (context, index) {
-                    final location = _recentSearches[index];
-                    return Card(
-                      child: ListTile(
-                        leading: const Icon(Icons.history),
-                        title: Text(location),
-                        trailing: IconButton(
-                          icon: const Icon(Icons.close, size: 20),
-                          onPressed: () {
-                            setState(() {
-                              _recentSearches.removeAt(index);
-                            });
-                          },
-                        ),
-                        onTap: () => _searchLocation(location),
-                      ),
-                    );
-                  },
-                ),
-              ),
-            ],
-          ],
+              ],
+            ),
+          ),
         ),
       ),
     );

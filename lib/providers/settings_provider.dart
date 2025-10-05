@@ -60,7 +60,7 @@ class SettingsProvider extends ChangeNotifier {
     } catch (e) {
       // Use default values if loading fails
       if (AppConfig.debugMode) {
-        print('SettingsProvider: Error loading settings: $e');
+        debugPrint('SettingsProvider: Error loading settings: $e');
       }
     }
 

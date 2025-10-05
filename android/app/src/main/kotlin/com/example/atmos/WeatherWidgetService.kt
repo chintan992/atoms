@@ -95,7 +95,11 @@ class WeatherWidgetService : IntentService("WeatherWidgetService") {
                                             condition = jsonObject.optString("condition", "Unknown"),
                                             location = jsonObject.optString("location", location),
                                             lastUpdated = getCurrentTimeString(),
-                                            iconResId = getWeatherIconResId(jsonObject.optString("icon", ""))
+                                            iconResId = getWeatherIconResId(jsonObject.optString("icon", "")),
+                                            highTemp = if (jsonObject.has("highTemp")) jsonObject.optString("highTemp", "--°") else "--°",
+                                            lowTemp = if (jsonObject.has("lowTemp")) jsonObject.optString("lowTemp", "--°") else "--°",
+                                            humidity = if (jsonObject.has("humidity")) jsonObject.optString("humidity", "--%") else "--%",
+                                            windSpeed = if (jsonObject.has("windSpeed")) jsonObject.optString("windSpeed", "-- km/h") else "-- km/h"
                                         )
                                         continuation.resume(weatherInfo, null)
                                     } catch (e: Exception) {

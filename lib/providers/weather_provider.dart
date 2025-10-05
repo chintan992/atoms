@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart';
 import 'package:geolocator/geolocator.dart';
 import '../data/models/weather_models.dart';
+import '../data/models/forecast_models.dart';
 import '../data/repositories/weather_repository.dart';
 import '../data/services/weather_service.dart';
 import '../data/storage/weather_storage.dart';
@@ -105,6 +106,16 @@ class WeatherProvider extends ChangeNotifier {
     }
 
     notifyListeners();
+  }
+
+  Future<EnhancedWeatherData?> loadForecastData({String? location, int days = 3}) async {
+    try {
+      final currentLocation = location ?? _currentLocation;
+      return await _weatherRepository.getWeatherWithForecast(currentLocation, days: days);
+    } catch (e) {
+      // Return null if forecast data fails, don't update UI state
+      return null;
+    }
   }
 
   Future<void> refreshWeather() async {

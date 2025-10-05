@@ -17,7 +17,7 @@ object WidgetUpdateSettings {
     // Default values
     const val DEFAULT_UPDATE_INTERVAL = 30L // minutes
     const val MIN_UPDATE_INTERVAL = 15L // minutes
-    const val MAX_UPDATE_INTERVAL = 120L // minutes
+    const val MAX_UPDATE_INTERVAL = 360L // minutes (6 hours)
 
     private fun getPreferences(context: Context): SharedPreferences {
         return context.getSharedPreferences("FlutterSharedPreferences", Context.MODE_PRIVATE)

@@ -53,6 +53,14 @@ class CurrentWeather extends Equatable {
   final double uv;
   final double gustMph;
   final double gustKph;
+  final int isDay;
+  // Additional fields that might be present in forecast data
+  final double? maxtempC;
+  final double? maxtempF;
+  final double? mintempC;
+  final double? mintempF;
+  final double? avgtempC;
+  final double? avgtempF;
 
   const CurrentWeather({
     required this.tempC,
@@ -74,13 +82,21 @@ class CurrentWeather extends Equatable {
     required this.uv,
     required this.gustMph,
     required this.gustKph,
+    required this.isDay,
+    this.maxtempC,
+    this.maxtempF,
+    this.mintempC,
+    this.mintempF,
+    this.avgtempC,
+    this.avgtempF,
   });
 
   @override
   List<Object?> get props => [
     tempC, tempF, condition, windMph, windKph, windDir, pressureMb,
     pressureIn, precipMm, precipIn, humidity, cloud, feelslikeC,
-    feelslikeF, visKm, visMiles, uv, gustMph, gustKph
+    feelslikeF, visKm, visMiles, uv, gustMph, gustKph, isDay, maxtempC,
+    maxtempF, mintempC, mintempF, avgtempC, avgtempF
   ];
 
   factory CurrentWeather.fromJson(Map<String, dynamic> json) {
@@ -104,6 +120,14 @@ class CurrentWeather extends Equatable {
       uv: (json['uv'] ?? 0).toDouble(),
       gustMph: (json['gust_mph'] ?? 0).toDouble(),
       gustKph: (json['gust_kph'] ?? 0).toDouble(),
+      isDay: json['is_day'] ?? 1, // Default to day if not specified
+      // Additional fields for forecast data
+      maxtempC: json['maxtemp_c'] != null ? (json['maxtemp_c'] as num).toDouble() : null,
+      maxtempF: json['maxtemp_f'] != null ? (json['maxtemp_f'] as num).toDouble() : null,
+      mintempC: json['mintemp_c'] != null ? (json['mintemp_c'] as num).toDouble() : null,
+      mintempF: json['mintemp_f'] != null ? (json['mintemp_f'] as num).toDouble() : null,
+      avgtempC: json['avgtemp_c'] != null ? (json['avgtemp_c'] as num).toDouble() : null,
+      avgtempF: json['avgtemp_f'] != null ? (json['avgtemp_f'] as num).toDouble() : null,
     );
   }
 
@@ -128,6 +152,14 @@ class CurrentWeather extends Equatable {
       'uv': uv,
       'gust_mph': gustMph,
       'gust_kph': gustKph,
+      'is_day': isDay,
+      // Additional forecast fields
+      'maxtemp_c': maxtempC,
+      'maxtemp_f': maxtempF,
+      'mintemp_c': mintempC,
+      'mintemp_f': mintempF,
+      'avgtemp_c': avgtempC,
+      'avgtemp_f': avgtempF,
     };
   }
 }

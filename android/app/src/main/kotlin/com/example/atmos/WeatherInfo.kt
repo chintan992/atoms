@@ -7,7 +7,11 @@ data class WeatherInfo(
     val condition: String,
     val location: String,
     val lastUpdated: String,
-    val iconResId: Int? = null
+    val iconResId: Int? = null,
+    val highTemp: String = "--°",
+    val lowTemp: String = "--°",
+    val humidity: String = "--%",
+    val windSpeed: String = "-- km/h"
 ) {
 
     fun toJson(): String {
@@ -17,6 +21,10 @@ data class WeatherInfo(
             put("location", location)
             put("lastUpdated", lastUpdated)
             put("iconResId", iconResId)
+            put("highTemp", highTemp)
+            put("lowTemp", lowTemp)
+            put("humidity", humidity)
+            put("windSpeed", windSpeed)
         }.toString()
     }
 
@@ -28,7 +36,11 @@ data class WeatherInfo(
                 condition = jsonObject.getString("condition"),
                 location = jsonObject.getString("location"),
                 lastUpdated = jsonObject.getString("lastUpdated"),
-                iconResId = if (jsonObject.has("iconResId")) jsonObject.getInt("iconResId") else null
+                iconResId = if (jsonObject.has("iconResId")) jsonObject.getInt("iconResId") else null,
+                highTemp = if (jsonObject.has("highTemp")) jsonObject.optString("highTemp", "--°") else "--°",
+                lowTemp = if (jsonObject.has("lowTemp")) jsonObject.optString("lowTemp", "--°") else "--°",
+                humidity = if (jsonObject.has("humidity")) jsonObject.optString("humidity", "--%") else "--%",
+                windSpeed = if (jsonObject.has("windSpeed")) jsonObject.optString("windSpeed", "-- km/h") else "-- km/h"
             )
         }
     }

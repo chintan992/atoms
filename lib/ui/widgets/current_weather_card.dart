@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../data/models/weather_models.dart';
 import '../../providers/settings_provider.dart';
+import 'glass_container.dart';
 
 class CurrentWeatherCard extends StatelessWidget {
   final WeatherData weatherData;
@@ -15,131 +16,156 @@ class CurrentWeatherCard extends StatelessWidget {
         final current = weatherData.current;
         final location = weatherData.location;
 
-        return Card(
-          margin: const EdgeInsets.all(16),
-          child: Padding(
-            padding: const EdgeInsets.all(20),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // Location and time
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            location.name,
-                            style: Theme.of(context).textTheme.headlineSmall
-                                ?.copyWith(
-                                  fontWeight: FontWeight.bold,
-                                  color: Theme.of(
-                                    context,
-                                  ).colorScheme.onSurface,
-                                ),
-                          ),
-                          Text(
-                            '${location.region}, ${location.country}',
-                            style: Theme.of(context).textTheme.bodyMedium
-                                ?.copyWith(
-                                  color: Theme.of(
-                                    context,
-                                  ).colorScheme.onSurfaceVariant,
-                                ),
-                          ),
-                        ],
+        return GlassCard(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Location and time
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          location.name,
+                          style: Theme.of(context).textTheme.headlineSmall
+                              ?.copyWith(
+                                fontWeight: FontWeight.bold,
+                                color: Colors.white,
+                              ),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          '${location.region}, ${location.country}',
+                          style: Theme.of(context).textTheme.bodyMedium
+                              ?.copyWith(
+                                color: Colors.white.withValues(alpha: 0.8),
+                              ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 6,
+                    ),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withValues(alpha: 0.15),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(
+                        color: Colors.white.withValues(alpha: 0.2),
+                        width: 1,
                       ),
                     ),
-                    Text(
+                    child: Text(
                       _formatTime(location.localtime),
                       style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        color: Theme.of(context).colorScheme.onSurfaceVariant,
+                        color: Colors.white,
+                        fontWeight: FontWeight.w500,
                       ),
                     ),
-                  ],
-                ),
-                const SizedBox(height: 24),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 32),
 
-                // Main temperature and condition
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
+              // Main temperature and condition
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        ShaderMask(
+                          shaderCallback: (bounds) => LinearGradient(
+                            colors: [
+                              Colors.white,
+                              Colors.white.withValues(alpha: 0.9),
+                            ],
+                          ).createShader(bounds),
+                          child: Text(
                             settingsProvider.getTemperatureDisplay(
                               current.tempC,
                               current.tempF,
                             ),
                             style: Theme.of(context).textTheme.displayLarge
                                 ?.copyWith(
-                                  fontWeight: FontWeight.bold,
-                                  color: Theme.of(context).primaryColor,
+                                  fontWeight: FontWeight.w300,
+                                  fontSize: 72,
+                                  color: Colors.white,
+                                  height: 1.0,
+                                  letterSpacing: -2,
                                 ),
                           ),
-                          const SizedBox(height: 8),
-                          Text(
-                            current.condition.text,
-                            style: Theme.of(context).textTheme.titleMedium,
-                          ),
-                          const SizedBox(height: 4),
-                          Text(
-                            'Feels like ${settingsProvider.getTemperatureDisplay(current.feelslikeC, current.feelslikeF)}',
-                            style: Theme.of(context).textTheme.bodyMedium
-                                ?.copyWith(color: Colors.grey[600]),
-                          ),
-                        ],
-                      ),
+                        ),
+                        const SizedBox(height: 12),
+                        Text(
+                          current.condition.text,
+                          style: Theme.of(context).textTheme.titleLarge
+                              ?.copyWith(
+                                color: Colors.white,
+                                fontWeight: FontWeight.w600,
+                              ),
+                        ),
+                        const SizedBox(height: 6),
+                        Text(
+                          'Feels like ${settingsProvider.getTemperatureDisplay(current.feelslikeC, current.feelslikeF)}',
+                          style: Theme.of(context).textTheme.bodyLarge
+                              ?.copyWith(
+                                color: Colors.white.withValues(alpha: 0.7),
+                              ),
+                        ),
+                      ],
                     ),
-                    // Weather icon placeholder
-                    Container(
-                      width: 80,
-                      height: 80,
-                      decoration: BoxDecoration(
-                        color: Theme.of(context).primaryColor.withOpacity(0.1),
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: Icon(
-                        _getWeatherIcon(current.condition.code),
-                        size: 48,
-                        color: Theme.of(context).primaryColor,
-                      ),
+                  ),
+                  // Weather icon with glass effect
+                  GlassContainer(
+                    blur: 8.0,
+                    opacity: 0.15,
+                    borderRadius: BorderRadius.circular(20),
+                    width: 90,
+                    height: 90,
+                    padding: const EdgeInsets.all(0),
+                    child: Icon(
+                      _getWeatherIcon(current.condition.code),
+                      size: 56,
+                      color: Colors.white,
                     ),
-                  ],
-                ),
-                const SizedBox(height: 16),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 24),
 
-                // Additional info
-                Row(
-                  children: [
-                    _buildInfoChip(
-                      context,
-                      Icons.water_drop,
-                      '${current.humidity}%',
-                      'Humidity',
-                    ),
-                    const SizedBox(width: 12),
-                    _buildInfoChip(
-                      context,
-                      Icons.air,
-                      '${current.windKph.round()} km/h',
-                      'Wind',
-                    ),
-                    const SizedBox(width: 12),
-                    _buildInfoChip(
-                      context,
-                      Icons.visibility,
-                      '${current.visKm.round()} km',
-                      'Visibility',
-                    ),
-                  ],
-                ),
-              ],
-            ),
+              // Additional info with glass chips
+              Row(
+                children: [
+                  _buildInfoChip(
+                    context,
+                    Icons.water_drop,
+                    '${current.humidity}%',
+                    'Humidity',
+                  ),
+                  const SizedBox(width: 12),
+                  _buildInfoChip(
+                    context,
+                    Icons.air,
+                    '${current.windKph.round()} km/h',
+                    'Wind',
+                  ),
+                  const SizedBox(width: 12),
+                  _buildInfoChip(
+                    context,
+                    Icons.visibility,
+                    '${current.visKm.round()} km',
+                    'Visibility',
+                  ),
+                ],
+              ),
+            ],
           ),
         );
       },
@@ -153,27 +179,34 @@ class CurrentWeatherCard extends StatelessWidget {
     String label,
   ) {
     return Expanded(
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-        decoration: BoxDecoration(
-          color: Theme.of(context).primaryColor.withOpacity(0.1),
-          borderRadius: BorderRadius.circular(8),
-        ),
+      child: GlassContainer(
+        blur: 8.0,
+        opacity: 0.12,
+        borderRadius: BorderRadius.circular(16),
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 12),
+        margin: EdgeInsets.zero,
         child: Column(
           children: [
-            Icon(icon, size: 20, color: Theme.of(context).primaryColor),
-            const SizedBox(height: 4),
+            Icon(
+              icon,
+              size: 22,
+              color: Colors.white,
+            ),
+            const SizedBox(height: 6),
             Text(
               value,
-              style: Theme.of(
-                context,
-              ).textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.bold),
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                fontWeight: FontWeight.bold,
+                color: Colors.white,
+              ),
             ),
+            const SizedBox(height: 2),
             Text(
               label,
-              style: Theme.of(
-                context,
-              ).textTheme.bodySmall?.copyWith(color: Colors.grey[600]),
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                color: Colors.white.withValues(alpha: 0.7),
+                fontSize: 11,
+              ),
             ),
           ],
         ),

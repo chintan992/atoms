@@ -1,9 +1,15 @@
 import 'package:atmos/core/config/app_config.dart';
+import 'package:atmos/data/models/forecast_models.dart';
+import 'package:atmos/data/models/weather_models.dart';
+import 'package:atmos/data/repositories/weather_repository.dart';
+import 'package:atmos/data/services/weather_service.dart';
+import 'package:atmos/data/storage/weather_storage.dart';
 import 'package:atmos/providers/settings_provider.dart';
 import 'package:atmos/providers/weather_provider.dart';
 import 'package:atmos/ui/screens/home_screen.dart';
 import 'package:atmos/ui/screens/search_screen.dart';
 import 'package:atmos/ui/screens/settings_screen.dart';
+import 'package:atmos/ui/theme/glass_theme.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
@@ -12,6 +18,9 @@ import 'dart:convert';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  // Enable high refresh rate support
+  await _enableHighRefreshRate();
 
   // Load environment variables
   await dotenv.load(fileName: ".env");
@@ -23,6 +32,26 @@ void main() async {
   _setupWidgetMethodChannel();
 
   runApp(const AtmosWeatherApp());
+}
+
+/// Enable high refresh rate support for smooth animations
+Future<void> _enableHighRefreshRate() async {
+  try {
+    // Enable high refresh rate on supported devices
+    await SystemChrome.setEnabledSystemUIMode(
+      SystemUiMode.edgeToEdge,
+      overlays: [SystemUiOverlay.top, SystemUiOverlay.bottom],
+    );
+    
+    // Set preferred orientations for better performance
+    await SystemChrome.setPreferredOrientations([
+      DeviceOrientation.portraitUp,
+      DeviceOrientation.portraitDown,
+    ]);
+  } catch (e) {
+    // Fallback if high refresh rate is not supported
+    debugPrint('High refresh rate not supported: $e');
+  }
 }
 
 void _setupWidgetMethodChannel() {
@@ -45,30 +74,90 @@ void _setupWidgetMethodChannel() {
 
 Future<String> _handleGetWeatherForWidget(MethodCall call) async {
   try {
-    final Map<String, dynamic> args = jsonDecode(call.arguments);
+    final Map<String, dynamic> args = call.arguments is String ? jsonDecode(call.arguments) : call.arguments;
     final String location = args['location'] ?? 'Current Location';
 
-    // Get weather data from the weather provider
-    final weatherProvider = WeatherProvider();
+    // Create a weather repository to fetch forecast data
+    final weatherRepository = WeatherRepository(WeatherService(), WeatherStorage());
 
-    // Fetch current weather for the specified location
-    await weatherProvider.loadWeatherData(location: location);
+    // Try to fetch enhanced weather data (current + forecast)
+    // If that fails, fall back to just current weather
+    EnhancedWeatherData? enhancedWeatherData;
+    WeatherData? currentWeatherData;
 
-    // Get the current weather data
-    final weatherData = weatherProvider.weatherData;
+    try {
+      enhancedWeatherData = await weatherRepository.getWeatherWithForecast(location, days: 1);
+    } catch (e) {
+      // If forecast API fails, try to get just current weather
+      try {
+        currentWeatherData = await weatherRepository.getCurrentWeather(location);
+      } catch (fallbackError) {
+        // If everything fails, return error data
+        final errorData = {
+          'temperature': '--°',
+          'condition': 'No Data',
+          'location': location,
+          'icon': 'default',
+          'lastUpdated': DateTime.now().toString(),
+          'highTemp': '--°',
+          'lowTemp': '--°',
+          'humidity': '--%',
+          'windSpeed': '-- km/h',
+        };
+        return jsonEncode(errorData);
+      }
+    }
 
-    if (weatherData != null) {
+    // Use enhanced data if available, otherwise use current data
+    final weatherDataToUse = enhancedWeatherData ?? 
+        (currentWeatherData != null ? 
+            EnhancedWeatherData(
+              location: currentWeatherData.location,
+              current: currentWeatherData.current,
+              forecast: null,
+            ) : null);
+
+    if (weatherDataToUse != null) {
       // Convert weather condition to icon name for Android widget
-      final iconName = _getWeatherIconName(weatherData.current.condition.text);
+      final iconName = _getWeatherIconName(weatherDataToUse.current.condition.text);
 
-      final temperature = '${weatherData.current.tempF.toInt()}°';
+      final temperature = '${weatherDataToUse.current.tempF.toInt()}°';
+
+      // Get high/low temperatures - start with fallback values from current weather
+      String highTemp = '--°';
+      String lowTemp = '--°';
+
+      // Try to get from forecast data if available
+      if (weatherDataToUse.forecast?.forecastday.isNotEmpty == true) {
+        final forecastDay = weatherDataToUse.forecast!.forecastday[0];
+        highTemp = '${forecastDay.maxtempF.toInt()}°';
+        lowTemp = '${forecastDay.mintempF.toInt()}°';
+      } 
+      // If no forecast, check if current weather has min/max temp fields
+      else if (weatherDataToUse.current.maxtempF != null && weatherDataToUse.current.mintempF != null) {
+        highTemp = '${weatherDataToUse.current.maxtempF!.toInt()}°';
+        lowTemp = '${weatherDataToUse.current.mintempF!.toInt()}°';
+      }
+      // Use current temp as both high and low if no proper values available
+      else {
+        highTemp = temperature;
+        lowTemp = temperature;
+      }
+
+      // Use current weather data for humidity and wind speed
+      final humidity = '${weatherDataToUse.current.humidity}%';
+      final windSpeed = '${weatherDataToUse.current.windKph.toInt()} km/h';
 
       final weatherDataMap = {
         'temperature': temperature,
-        'condition': weatherData.current.condition.text,
-        'location': weatherData.location.name,
+        'condition': weatherDataToUse.current.condition.text,
+        'location': weatherDataToUse.location.name,
         'icon': iconName,
         'lastUpdated': DateTime.now().toString(),
+        'highTemp': highTemp,
+        'lowTemp': lowTemp,
+        'humidity': humidity,
+        'windSpeed': windSpeed,
       };
 
       return jsonEncode(weatherDataMap);
@@ -80,18 +169,38 @@ Future<String> _handleGetWeatherForWidget(MethodCall call) async {
         'location': location,
         'icon': 'default',
         'lastUpdated': DateTime.now().toString(),
+        'highTemp': '--°',
+        'lowTemp': '--°',
+        'humidity': '--%',
+        'windSpeed': '-- km/h',
       };
 
       return jsonEncode(fallbackData);
     }
   } catch (e) {
     // Return error data instead of throwing exception
+    String errorLocation = 'Unknown';
+    if (call.arguments is String) {
+      try {
+        final args = jsonDecode(call.arguments);
+        errorLocation = args['location'] ?? 'Unknown';
+      } catch (e) {
+        errorLocation = 'Unknown';
+      }
+    } else if (call.arguments is Map<String, dynamic>) {
+      errorLocation = call.arguments['location'] ?? 'Unknown';
+    }
+
     final errorData = {
       'temperature': '--°',
       'condition': 'Error',
-      'location': call.arguments['location'] ?? 'Unknown',
+      'location': errorLocation,
       'icon': 'default',
       'lastUpdated': DateTime.now().toString(),
+      'highTemp': '--°',
+      'lowTemp': '--°',
+      'humidity': '--%',
+      'windSpeed': '-- km/h',
     };
 
     return jsonEncode(errorData);
@@ -142,81 +251,13 @@ class AtmosWeatherApp extends StatelessWidget {
       child: MaterialApp(
         title: AppConfig.appName,
         debugShowCheckedModeBanner: false,
-        theme: ThemeData(
-          useMaterial3: true,
-          colorScheme:
-              ColorScheme.fromSeed(
-                seedColor: Colors.blue,
-                brightness: Brightness.light,
-              ).copyWith(
-                onSurface: const Color(0xFF000000), // High contrast text
-                onSurfaceVariant: const Color(
-                  0xFF49454F,
-                ), // Better contrast for secondary text
-                outline: const Color(
-                  0xFF79747E,
-                ), // Better contrast for outlines
-              ),
-          appBarTheme: const AppBarTheme(
-            elevation: 0,
-            centerTitle: true,
-            foregroundColor: Color(0xFF000000), // Ensure title is high contrast
-            backgroundColor: Color(0xFFFFFFFF), // Explicit white background
-          ),
-          cardTheme: CardThemeData(
-            elevation: 4,
-            margin: EdgeInsets.all(8),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(16),
-            ),
-            color: const Color(0xFFFFFFFF), // Explicit white background
-          ),
-          textTheme: ThemeData().textTheme.apply(
-            bodyColor: const Color(0xFF000000),
-            displayColor: const Color(0xFF000000),
-          ),
-        ),
-        darkTheme: ThemeData(
-          useMaterial3: true,
-          colorScheme:
-              ColorScheme.fromSeed(
-                seedColor: Colors.blue,
-                brightness: Brightness.dark,
-              ).copyWith(
-                onSurface: const Color(
-                  0xFFFFFFFF,
-                ), // High contrast text for dark theme
-                onSurfaceVariant: const Color(
-                  0xFFCAC4D0,
-                ), // Better contrast for secondary text in dark theme
-                outline: const Color(
-                  0xFF938F99,
-                ), // Better contrast for outlines in dark theme
-              ),
-          appBarTheme: const AppBarTheme(
-            elevation: 0,
-            centerTitle: true,
-            foregroundColor: Color(
-              0xFFFFFFFF,
-            ), // Ensure title is high contrast in dark theme
-            backgroundColor: Color(0xFF1C1B1F), // Explicit dark background
-          ),
-          cardTheme: CardThemeData(
-            elevation: 4,
-            margin: EdgeInsets.all(8),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(16),
-            ),
-            color: const Color(
-              0xFF1C1B1F,
-            ), // Explicit dark background for cards
-          ),
-          textTheme: ThemeData(brightness: Brightness.dark).textTheme.apply(
-            bodyColor: const Color(0xFFFFFFFF),
-            displayColor: const Color(0xFFFFFFFF),
-          ),
-        ),
+        theme: GlassTheme.lightTheme(),
+        darkTheme: GlassTheme.darkTheme(),
         themeMode: _getThemeMode(AppConfig.themeMode),
+        // Enable high refresh rate support
+        builder: (context, child) {
+          return child!;
+        },
         initialRoute: '/',
         routes: {
           '/': (context) => const HomeScreen(),

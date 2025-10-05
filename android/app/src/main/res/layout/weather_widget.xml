@@ -1,70 +1,178 @@
 <?xml version="1.0" encoding="utf-8"?>
-<RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:id="@+id/widget_root"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:background="@drawable/widget_background"
-    android:padding="8dp">
+    android:orientation="vertical"
+    android:padding="12dp">
 
-    <!-- Weather Icon -->
-    <ImageView
-        android:id="@+id/weather_icon"
-        android:layout_width="48dp"
-        android:layout_height="48dp"
-        android:layout_alignParentStart="true"
-        android:layout_alignParentTop="true"
-        android:layout_marginEnd="8dp"
-        android:contentDescription="Weather icon"
-        android:src="@drawable/ic_weather_default" />
-
-    <!-- Temperature (Large) -->
-    <TextView
-        android:id="@+id/temperature_text"
-        android:layout_width="wrap_content"
+    <!-- Top row: Location and Last Updated -->
+    <LinearLayout
+        android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_alignParentTop="true"
-        android:layout_toEndOf="@id/weather_icon"
-        android:text="--°"
-        android:textColor="@android:color/white"
-        android:textSize="24sp"
-        android:textStyle="bold" />
+        android:orientation="horizontal"
+        android:layout_marginBottom="8dp">
 
-    <!-- Weather Condition -->
-    <TextView
-        android:id="@+id/condition_text"
-        android:layout_width="wrap_content"
+        <TextView
+            android:id="@+id/location_text"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="No location"
+            android:textColor="@android:color/white"
+            android:textSize="14sp"
+            android:textStyle="bold"
+            android:maxLines="1"
+            android:ellipsize="end" />
+
+        <TextView
+            android:id="@+id/last_updated_text"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Just now"
+            android:textColor="@android:color/white"
+            android:textSize="10sp"
+            android:maxLines="1" />
+
+    </LinearLayout>
+
+    <!-- Middle row: Weather icon and temperature -->
+    <LinearLayout
+        android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_below="@id/temperature_text"
-        android:layout_toEndOf="@id/weather_icon"
-        android:text="Loading..."
-        android:textColor="@android:color/white"
-        android:textSize="14sp" />
+        android:orientation="horizontal"
+        android:layout_marginBottom="8dp"
+        android:gravity="center_vertical">
 
-    <!-- Location -->
-    <TextView
-        android:id="@+id/location_text"
-        android:layout_width="wrap_content"
+        <ImageView
+            android:id="@+id/weather_icon"
+            android:layout_width="60dp"
+            android:layout_height="60dp"
+            android:contentDescription="Weather icon"
+            android:src="@drawable/ic_weather_default" />
+
+        <LinearLayout
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:orientation="vertical"
+            android:layout_marginStart="8dp">
+
+            <!-- Main Temperature -->
+            <TextView
+                android:id="@+id/temperature_text"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="--°"
+                android:textColor="@android:color/white"
+                android:textSize="32sp"
+                android:textStyle="bold" />
+
+            <!-- Weather Condition -->
+            <TextView
+                android:id="@+id/condition_text"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Loading..."
+                android:textColor="@android:color/white"
+                android:textSize="14sp" />
+
+        </LinearLayout>
+
+    </LinearLayout>
+
+    <!-- Bottom row: Additional weather details -->
+    <LinearLayout
+        android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_alignParentBottom="true"
-        android:layout_alignParentStart="true"
-        android:layout_marginTop="8dp"
-        android:text="No location"
-        android:textColor="@android:color/white"
-        android:textSize="12sp"
-        android:maxLines="1"
-        android:ellipsize="end" />
+        android:orientation="horizontal"
+        android:baselineAligned="false">
 
-    <!-- Last Updated -->
-    <TextView
-        android:id="@+id/last_updated_text"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_alignParentEnd="true"
-        android:layout_alignParentBottom="true"
-        android:layout_marginTop="8dp"
-        android:text=""
-        android:textColor="@android:color/white"
-        android:textSize="10sp"
-        android:maxLines="1" />
+        <!-- High/Low temperatures -->
+        <LinearLayout
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:orientation="vertical"
+            android:gravity="center">
 
-</RelativeLayout>
+            <TextView
+                android:id="@+id/high_temp_label"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="High"
+                android:textColor="@android:color/white"
+                android:textSize="10sp"
+                android:alpha="0.7" />
+
+            <TextView
+                android:id="@+id/high_temp_text"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="--°"
+                android:textColor="@android:color/white"
+                android:textSize="12sp"
+                android:textStyle="bold" />
+
+        </LinearLayout>
+
+        <!-- Humidity -->
+        <LinearLayout
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:orientation="vertical"
+            android:gravity="center">
+
+            <TextView
+                android:id="@+id/humidity_label"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Humidity"
+                android:textColor="@android:color/white"
+                android:textSize="10sp"
+                android:alpha="0.7" />
+
+            <TextView
+                android:id="@+id/humidity_text"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="--%"
+                android:textColor="@android:color/white"
+                android:textSize="12sp"
+                android:textStyle="bold" />
+
+        </LinearLayout>
+
+        <!-- Wind Speed -->
+        <LinearLayout
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:orientation="vertical"
+            android:gravity="center">
+
+            <TextView
+                android:id="@+id/wind_label"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Wind"
+                android:textColor="@android:color/white"
+                android:textSize="10sp"
+                android:alpha="0.7" />
+
+            <TextView
+                android:id="@+id/wind_text"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="-- km/h"
+                android:textColor="@android:color/white"
+                android:textSize="12sp"
+                android:textStyle="bold" />
+
+        </LinearLayout>
+
+    </LinearLayout>
+
+</LinearLayout>

@@ -1,10 +1,12 @@
 import '../models/weather_models.dart';
+import '../models/forecast_models.dart';
 import '../services/weather_service.dart';
 import '../storage/weather_storage.dart';
 
 abstract class IWeatherRepository {
   Future<WeatherData> getCurrentWeather(String location);
   Future<WeatherData> getWeatherByCoordinates(double lat, double lon);
+  Future<EnhancedWeatherData> getWeatherWithForecast(String location, {int days = 3});
   Future<WeatherData?> getCachedWeather(String location);
   Future<void> cacheWeather(String location, WeatherData weatherData);
 }
@@ -88,5 +90,15 @@ class WeatherRepository implements IWeatherRepository {
   @override
   Future<void> cacheWeather(String location, WeatherData weatherData) async {
     await _weatherStorage.saveWeatherData(location, weatherData);
+  }
+
+  @override
+  Future<EnhancedWeatherData> getWeatherWithForecast(String location, {int days = 3}) async {
+    try {
+      // Fetch both current weather and forecast
+      return await _weatherService.getWeatherWithForecast(location, days: days);
+    } catch (e) {
+      rethrow;
+    }
   }
 }

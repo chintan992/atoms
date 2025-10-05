@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 
 enum TemperatureUnit { celsius, fahrenheit }
@@ -150,22 +151,24 @@ class AppConfig {
       }
     } catch (e) {
       if (debugMode) {
-        print('AppConfig initialization error: $e');
+        debugPrint('AppConfig initialization error: $e');
       }
       rethrow;
     }
   }
 
   static void _logConfiguration() {
-    print('=== Atmos App Configuration ===');
-    print('App Name: $appName');
-    print('Version: $appVersion');
-    print('API Key: ${weatherApiKey.substring(0, 8)}...');
-    print('API Base URL: $weatherApiBaseUrl');
-    print('Default Temperature Unit: $defaultTemperatureUnit');
-    print('Default Update Interval: $defaultUpdateIntervalMinutes minutes');
-    print('Debug Mode: $debugMode');
-    print('Log Level: $logLevel');
-    print('===============================');
+    if (debugMode) {
+      debugPrint('=== Atmos App Configuration ===');
+      debugPrint('App Name: $appName');
+      debugPrint('Version: $appVersion');
+      debugPrint('API Key: ${weatherApiKey.substring(0, 8)}...');
+      debugPrint('API Base URL: $weatherApiBaseUrl');
+      debugPrint('Default Temperature Unit: $defaultTemperatureUnit');
+      debugPrint('Default Update Interval: $defaultUpdateIntervalMinutes minutes');
+      debugPrint('Debug Mode: $debugMode');
+      debugPrint('Log Level: $logLevel');
+      debugPrint('===============================');
+    }
   }
 }

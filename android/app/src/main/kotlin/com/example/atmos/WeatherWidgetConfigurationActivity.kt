@@ -20,10 +20,18 @@ class WeatherWidgetConfigurationActivity : AppCompatActivity() {
     companion object {
         const val TAG = "WidgetConfigActivity"
         const val DEFAULT_LOCATION = "Current Location"
+        private const val PREF_WIDGET_SHOW_HIGH_LOW = "widget_show_high_low_"
+        private const val PREF_WIDGET_SHOW_HUMIDITY = "widget_show_humidity_"
+        private const val PREF_WIDGET_SHOW_WIND = "widget_show_wind_"
+        private const val PREF_WIDGET_UPDATE_FREQUENCY = "widget_update_frequency_"
     }
 
     private var appWidgetId = AppWidgetManager.INVALID_APPWIDGET_ID
     private lateinit var locationSpinner: Spinner
+    private lateinit var showHighLowCheckbox: CheckBox
+    private lateinit var showHumidityCheckbox: CheckBox
+    private lateinit var showWindCheckbox: CheckBox
+    private lateinit var updateFrequencySpinner: Spinner
     private lateinit var saveButton: Button
     private lateinit var progressBar: ProgressBar
 
@@ -54,11 +62,17 @@ class WeatherWidgetConfigurationActivity : AppCompatActivity() {
 
         initializeViews()
         setupLocationSpinner()
+        setupDisplayOptions()
+        setupUpdateFrequencySpinner()
         setupSaveButton()
     }
 
     private fun initializeViews() {
         locationSpinner = findViewById(R.id.location_spinner)
+        showHighLowCheckbox = findViewById(R.id.show_high_low_checkbox)
+        showHumidityCheckbox = findViewById(R.id.show_humidity_checkbox)
+        showWindCheckbox = findViewById(R.id.show_wind_checkbox)
+        updateFrequencySpinner = findViewById(R.id.update_frequency_spinner)
         saveButton = findViewById(R.id.save_button)
         progressBar = findViewById(R.id.progress_bar)
     }
@@ -87,6 +101,37 @@ class WeatherWidgetConfigurationActivity : AppCompatActivity() {
         )
         adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
         locationSpinner.adapter = adapter
+    }
+
+    private fun setupDisplayOptions() {
+        // Load saved display preferences for this widget
+        val prefs = getSharedPreferences("FlutterSharedPreferences", Context.MODE_PRIVATE)
+        showHighLowCheckbox.isChecked = prefs.getBoolean("${PREF_WIDGET_SHOW_HIGH_LOW}$appWidgetId", true)
+        showHumidityCheckbox.isChecked = prefs.getBoolean("${PREF_WIDGET_SHOW_HUMIDITY}$appWidgetId", true)
+        showWindCheckbox.isChecked = prefs.getBoolean("${PREF_WIDGET_SHOW_WIND}$appWidgetId", true)
+    }
+
+    private fun setupUpdateFrequencySpinner() {
+        // Options for update frequency in minutes
+        val frequencies = arrayOf(
+            "15 minutes", "30 minutes", "1 hour", "2 hours", "6 hours"
+        )
+
+        val adapter = ArrayAdapter(
+            this,
+            android.R.layout.simple_spinner_item,
+            frequencies
+        )
+        adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
+        updateFrequencySpinner.adapter = adapter
+
+        // Load saved frequency preference
+        val prefs = getSharedPreferences("FlutterSharedPreferences", Context.MODE_PRIVATE)
+        val savedFrequency = prefs.getString("${PREF_WIDGET_UPDATE_FREQUENCY}$appWidgetId", "30 minutes")
+        val position = frequencies.indexOf(savedFrequency)
+        if (position >= 0) {
+            updateFrequencySpinner.setSelection(position)
+        }
     }
 
     private fun setupSaveButton() {
@@ -149,17 +194,46 @@ class WeatherWidgetConfigurationActivity : AppCompatActivity() {
     private fun saveWidgetConfiguration(location: String) {
         val prefs = getSharedPreferences("FlutterSharedPreferences", Context.MODE_PRIVATE)
 
+        // Save location and display options
         prefs.edit()
             .putString("widget_${appWidgetId}_location", location)
+            .putBoolean("${PREF_WIDGET_SHOW_HIGH_LOW}$appWidgetId", showHighLowCheckbox.isChecked)
+            .putBoolean("${PREF_WIDGET_SHOW_HUMIDITY}$appWidgetId", showHumidityCheckbox.isChecked)
+            .putBoolean("${PREF_WIDGET_SHOW_WIND}$appWidgetId", showWindCheckbox.isChecked)
+            .putString("${PREF_WIDGET_UPDATE_FREQUENCY}$appWidgetId", 
+                when (updateFrequencySpinner.selectedItemPosition) {
+                    0 -> "15"
+                    1 -> "30"
+                    2 -> "60"
+                    3 -> "120"
+                    4 -> "360"
+                    else -> "30"
+                }
+            )
             .putString("widget_$appWidgetId", null) // Clear any existing weather data
             .apply()
 
         Log.d(TAG, "Saved configuration for widget $appWidgetId with location: $location")
+        
+        // Update the global update interval setting
+        val updateMinutes = when (updateFrequencySpinner.selectedItemPosition) {
+            0 -> 15L
+            1 -> 30L
+            2 -> 60L
+            3 -> 120L
+            4 -> 360L
+            else -> 30L // Default
+        }
+        WidgetUpdateSettings.setUpdateIntervalMinutes(this, updateMinutes)
     }
 
     private fun showProgress(show: Boolean) {
         progressBar.visibility = if (show) View.VISIBLE else View.GONE
         saveButton.visibility = if (show) View.GONE else View.VISIBLE
         locationSpinner.isEnabled = !show
+        showHighLowCheckbox.isEnabled = !show
+        showHumidityCheckbox.isEnabled = !show
+        showWindCheckbox.isEnabled = !show
+        updateFrequencySpinner.isEnabled = !show
     }
 }

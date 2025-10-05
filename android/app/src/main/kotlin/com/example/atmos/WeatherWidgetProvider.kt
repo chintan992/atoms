@@ -7,6 +7,7 @@ import android.content.Context
 import android.content.Intent
 import android.content.SharedPreferences
 import android.util.Log
+import android.view.View
 import android.widget.RemoteViews
 import androidx.preference.PreferenceManager
 import androidx.work.WorkManager
@@ -136,6 +137,48 @@ class WeatherWidgetProvider : AppWidgetProvider() {
                     views.setImageViewResource(R.id.weather_icon, iconResId)
                 }
 
+                // Update additional weather details if available
+                // Handle high temperature - show even if it's a fallback value
+                if (weatherInfo.highTemp != null && weatherInfo.highTemp != "null") {
+                    views.setTextViewText(R.id.high_temp_text, weatherInfo.highTemp)
+                    views.setViewVisibility(R.id.high_temp_label, View.VISIBLE)
+                    views.setViewVisibility(R.id.high_temp_text, View.VISIBLE)
+                    
+                    // Handle low temperature in context with high temperature
+                    if (weatherInfo.lowTemp != null && weatherInfo.lowTemp != "null") {
+                        // If both high and low are available and different from fallbacks
+                        if (weatherInfo.highTemp != "--°" && weatherInfo.lowTemp != "--°") {
+                            views.setTextViewText(R.id.high_temp_text, "${weatherInfo.highTemp}/${weatherInfo.lowTemp}")
+                        } else if (weatherInfo.lowTemp != "--°") {
+                            // If only low is meaningful, show that
+                            views.setTextViewText(R.id.high_temp_text, weatherInfo.lowTemp)
+                        }
+                    }
+                } else {
+                    views.setViewVisibility(R.id.high_temp_label, View.GONE)
+                    views.setViewVisibility(R.id.high_temp_text, View.GONE)
+                }
+
+                // Handle humidity - show even if it's a fallback value
+                if (weatherInfo.humidity != null && weatherInfo.humidity != "null") {
+                    views.setTextViewText(R.id.humidity_text, weatherInfo.humidity)
+                    views.setViewVisibility(R.id.humidity_label, View.VISIBLE)
+                    views.setViewVisibility(R.id.humidity_text, View.VISIBLE)
+                } else {
+                    views.setViewVisibility(R.id.humidity_label, View.GONE)
+                    views.setViewVisibility(R.id.humidity_text, View.GONE)
+                }
+
+                // Handle wind speed - show even if it's a fallback value
+                if (weatherInfo.windSpeed != null && weatherInfo.windSpeed != "null") {
+                    views.setTextViewText(R.id.wind_text, weatherInfo.windSpeed)
+                    views.setViewVisibility(R.id.wind_label, View.VISIBLE)
+                    views.setViewVisibility(R.id.wind_text, View.VISIBLE)
+                } else {
+                    views.setViewVisibility(R.id.wind_label, View.GONE)
+                    views.setViewVisibility(R.id.wind_text, View.GONE)
+                }
+
                 Log.d(TAG, "Updated widget $appWidgetId with weather data")
             } catch (e: Exception) {
                 Log.e(TAG, "Error parsing widget data for $appWidgetId", e)
@@ -152,6 +195,17 @@ class WeatherWidgetProvider : AppWidgetProvider() {
         views.setTextViewText(R.id.location_text, "No location")
         views.setTextViewText(R.id.last_updated_text, "")
         views.setImageViewResource(R.id.weather_icon, R.drawable.ic_weather_default)
+        
+        // Show default values for additional weather details
+        views.setTextViewText(R.id.high_temp_text, "--°")
+        views.setTextViewText(R.id.humidity_text, "--%")
+        views.setTextViewText(R.id.wind_text, "-- km/h")
+        views.setViewVisibility(R.id.high_temp_label, View.VISIBLE)
+        views.setViewVisibility(R.id.high_temp_text, View.VISIBLE)
+        views.setViewVisibility(R.id.humidity_label, View.VISIBLE)
+        views.setViewVisibility(R.id.humidity_text, View.VISIBLE)
+        views.setViewVisibility(R.id.wind_label, View.VISIBLE)
+        views.setViewVisibility(R.id.wind_text, View.VISIBLE)
     }
 
     private fun scheduleNextUpdate(context: Context) {
