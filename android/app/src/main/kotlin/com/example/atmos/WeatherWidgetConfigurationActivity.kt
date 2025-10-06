@@ -18,6 +18,11 @@ import io.flutter.plugin.common.MethodChannel
 import kotlinx.coroutines.*
 import kotlin.coroutines.resume
 import kotlin.coroutines.suspendCoroutine
+import android.net.Uri
+import android.provider.Settings
+import android.content.pm.PackageManager
+import androidx.core.content.ContextCompat
+import androidx.core.app.ActivityCompat
 
 class WeatherWidgetConfigurationActivity : AppCompatActivity() {
 
@@ -41,6 +46,11 @@ class WeatherWidgetConfigurationActivity : AppCompatActivity() {
     private lateinit var themeSpinner: Spinner
     private lateinit var saveButton: Button
     private lateinit var progressBar: ProgressBar
+    private lateinit var locationPermissionStatusText: TextView
+    private lateinit var openAppSettingsButton: Button
+    private lateinit var requestPreciseLocationButton: Button
+
+    private val REQUEST_LOCATION_PERMISSIONS = 1001
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -73,6 +83,9 @@ class WeatherWidgetConfigurationActivity : AppCompatActivity() {
         setupUpdateFrequencySpinner()
         setupThemeSpinner()
         setupSaveButton()
+
+        // Show current permission state and hint to enable precise if needed
+        updateLocationPermissionStatus()
     }
 
     private fun initializeViews() {
@@ -86,6 +99,12 @@ class WeatherWidgetConfigurationActivity : AppCompatActivity() {
         themeSpinner = findViewById(R.id.theme_spinner)
         saveButton = findViewById(R.id.save_button)
         progressBar = findViewById(R.id.progress_bar)
+        locationPermissionStatusText = findViewById(R.id.location_permission_status_text)
+        openAppSettingsButton = findViewById(R.id.open_app_settings_button)
+        requestPreciseLocationButton = findViewById(R.id.request_precise_location_button)
+
+        openAppSettingsButton.setOnClickListener { openAppSettings() }
+        requestPreciseLocationButton.setOnClickListener { requestPreciseLocation() }
     }
 
     private fun setupLocationSpinner() {
@@ -201,32 +220,104 @@ class WeatherWidgetConfigurationActivity : AppCompatActivity() {
     }
 
     private fun getCurrentLocationFromFlutter(callback: (String?) -> Unit) {
-        // Try to read coordinates from SharedPreferences first
-        val prefs = getSharedPreferences("FlutterSharedPreferences", Context.MODE_PRIVATE)
-        val lat = prefs.getString("flutter.current_location_lat", null)
-        val lon = prefs.getString("flutter.current_location_lon", null)
-        
-        if (lat != null && lon != null) {
-            val coordinates = "$lat,$lon"
-            Log.d(TAG, "Retrieved current location coordinates from SharedPreferences: $coordinates")
-            callback(coordinates)
-            return
+        try {
+            // Start a lightweight Flutter engine to call into the Geolocator-powered channel
+            val engine = FlutterEngine(this)
+            engine.dartExecutor.executeDartEntrypoint(
+                io.flutter.embedding.engine.dart.DartExecutor.DartEntrypoint.createDefault()
+            )
+
+            val channel = MethodChannel(
+                engine.dartExecutor.binaryMessenger,
+                "atmos_widget_channel"
+            )
+
+            var responded = false
+
+            // Set a timeout in case the engine/channel fails to respond
+            val timeoutMs = 10000L // 10 seconds
+            val handler = android.os.Handler(android.os.Looper.getMainLooper())
+            val timeoutRunnable = Runnable {
+                if (!responded) {
+                    Log.w(TAG, "getCurrentLocation timeout from Flutter channel")
+                    responded = true
+                    // Fallback to stored coordinates if present
+                    val prefs = getSharedPreferences("FlutterSharedPreferences", Context.MODE_PRIVATE)
+                    val lat = prefs.getString("flutter.current_location_lat", null)
+                    val lon = prefs.getString("flutter.current_location_lon", null)
+                    val coords = if (lat != null && lon != null) "$lat,$lon" else null
+                    try { engine.destroy() } catch (_: Exception) {}
+                    callback(coords)
+                }
+            }
+            handler.postDelayed(timeoutRunnable, timeoutMs)
+
+            // Invoke method to fetch a fresh high-accuracy location
+            channel.invokeMethod(
+                "getCurrentLocation",
+                null,
+                object : MethodChannel.Result {
+                    override fun success(result: Any?) {
+                        if (!responded) {
+                            responded = true
+                            handler.removeCallbacks(timeoutRunnable)
+                            val coords = (result as? String)
+                            // Persist if we got coordinates
+                            if (coords != null && coords.contains(",")) {
+                                val parts = coords.split(",")
+                                if (parts.size == 2) {
+                                    val prefs = getSharedPreferences("FlutterSharedPreferences", Context.MODE_PRIVATE)
+                                    prefs.edit()
+                                        .putString("flutter.current_location_lat", parts[0])
+                                        .putString("flutter.current_location_lon", parts[1])
+                                        .apply()
+                                }
+                            }
+                            try { engine.destroy() } catch (_: Exception) {}
+                            callback(coords)
+                        }
+                    }
+
+                    override fun error(errorCode: String, errorMessage: String?, errorDetails: Any?) {
+                        if (!responded) {
+                            responded = true
+                            handler.removeCallbacks(timeoutRunnable)
+                            Log.e(TAG, "Flutter channel error: $errorCode - $errorMessage")
+                            // Fallback to stored coordinates if present
+                            val prefs = getSharedPreferences("FlutterSharedPreferences", Context.MODE_PRIVATE)
+                            val lat = prefs.getString("flutter.current_location_lat", null)
+                            val lon = prefs.getString("flutter.current_location_lon", null)
+                            val coords = if (lat != null && lon != null) "$lat,$lon" else null
+                            try { engine.destroy() } catch (_: Exception) {}
+                            callback(coords)
+                        }
+                    }
+
+                    override fun notImplemented() {
+                        if (!responded) {
+                            responded = true
+                            handler.removeCallbacks(timeoutRunnable)
+                            Log.w(TAG, "getCurrentLocation not implemented in Flutter")
+                            // Fallback to stored coordinates if present
+                            val prefs = getSharedPreferences("FlutterSharedPreferences", Context.MODE_PRIVATE)
+                            val lat = prefs.getString("flutter.current_location_lat", null)
+                            val lon = prefs.getString("flutter.current_location_lon", null)
+                            val coords = if (lat != null && lon != null) "$lat,$lon" else null
+                            try { engine.destroy() } catch (_: Exception) {}
+                            callback(coords)
+                        }
+                    }
+                }
+            )
+        } catch (e: Exception) {
+            Log.e(TAG, "Error initializing Flutter engine for location", e)
+            // Fallback to stored coordinates if present
+            val prefs = getSharedPreferences("FlutterSharedPreferences", Context.MODE_PRIVATE)
+            val lat = prefs.getString("flutter.current_location_lat", null)
+            val lon = prefs.getString("flutter.current_location_lon", null)
+            val coords = if (lat != null && lon != null) "$lat,$lon" else null
+            callback(coords)
         }
-        
-        Log.w(TAG, "Current location coordinates not available in SharedPreferences")
-        
-        // If not available, try to use a fallback location (Calgary) based on user's detected location
-        // This is a fallback to ensure the widget works even if location access fails
-        val fallbackCoordinates = "51.08,-113.98" // Calgary coordinates
-        Log.d(TAG, "Using fallback coordinates (Calgary): $fallbackCoordinates")
-        
-        // Store these coordinates for future use
-        prefs.edit()
-            .putString("flutter.current_location_lat", "51.08")
-            .putString("flutter.current_location_lon", "-113.98")
-            .apply()
-        
-        callback(fallbackCoordinates)
     }
 
     private fun setupDisplayOptions() {
@@ -445,5 +536,99 @@ class WeatherWidgetConfigurationActivity : AppCompatActivity() {
         showWindCheckbox.isEnabled = !show
         updateFrequencySpinner.isEnabled = !show
         themeSpinner.isEnabled = !show
+    }
+
+    override fun onResume() {
+        super.onResume()
+        // Refresh permission status when returning from settings
+        updateLocationPermissionStatus()
+    }
+
+    private fun isPreciseLocationGranted(): Boolean {
+        return ContextCompat.checkSelfPermission(
+            this,
+            android.Manifest.permission.ACCESS_FINE_LOCATION
+        ) == PackageManager.PERMISSION_GRANTED
+    }
+
+    private fun isAnyLocationGranted(): Boolean {
+        val fine = ContextCompat.checkSelfPermission(
+            this,
+            android.Manifest.permission.ACCESS_FINE_LOCATION
+        ) == PackageManager.PERMISSION_GRANTED
+        val coarse = ContextCompat.checkSelfPermission(
+            this,
+            android.Manifest.permission.ACCESS_COARSE_LOCATION
+        ) == PackageManager.PERMISSION_GRANTED
+        return fine || coarse
+    }
+
+    private fun updateLocationPermissionStatus() {
+        val precise = isPreciseLocationGranted()
+        val any = isAnyLocationGranted()
+        when {
+            precise -> {
+                locationPermissionStatusText.text = "Location permission: Precise granted"
+                locationPermissionStatusText.setTextColor(
+                    ContextCompat.getColor(this, android.R.color.holo_green_dark)
+                )
+                openAppSettingsButton.visibility = View.GONE
+                requestPreciseLocationButton.visibility = View.GONE
+            }
+            any -> {
+                locationPermissionStatusText.text = "Location permission: Approximate only. Enable Precise for better results."
+                locationPermissionStatusText.setTextColor(
+                    ContextCompat.getColor(this, android.R.color.holo_orange_dark)
+                )
+                openAppSettingsButton.visibility = View.VISIBLE
+                requestPreciseLocationButton.visibility = View.VISIBLE
+            }
+            else -> {
+                locationPermissionStatusText.text = "Location permission: Not granted. Request or open App Settings to allow location."
+                locationPermissionStatusText.setTextColor(
+                    ContextCompat.getColor(this, android.R.color.holo_red_dark)
+                )
+                openAppSettingsButton.visibility = View.VISIBLE
+                requestPreciseLocationButton.visibility = View.VISIBLE
+            }
+        }
+    }
+
+    private fun requestPreciseLocation() {
+        // Request FINE (precise) and COARSE together; system will show precise toggle on Android 12+
+        ActivityCompat.requestPermissions(
+            this,
+            arrayOf(
+                android.Manifest.permission.ACCESS_FINE_LOCATION,
+                android.Manifest.permission.ACCESS_COARSE_LOCATION
+            ),
+            REQUEST_LOCATION_PERMISSIONS
+        )
+    }
+
+    override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+        if (requestCode == REQUEST_LOCATION_PERMISSIONS) {
+            updateLocationPermissionStatus()
+            // If user granted any location, optionally fetch fresh coords when using current location
+            if (isAnyLocationGranted() && useCurrentLocationCheckBox.isChecked) {
+                showProgressImpl(true)
+                getCurrentLocationFromFlutter { coordinates ->
+                    showProgressImpl(false)
+                    if (coordinates != null) {
+                        Log.d(TAG, "Obtained coordinates after permission: $coordinates")
+                    } else {
+                        Log.w(TAG, "No coordinates after permission grant")
+                    }
+                }
+            }
+        }
+    }
+
+    private fun openAppSettings() {
+        val intent = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
+            data = Uri.fromParts("package", packageName, null)
+        }
+        startActivity(intent)
     }
 }

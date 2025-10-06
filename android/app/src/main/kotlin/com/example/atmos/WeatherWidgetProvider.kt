@@ -6,7 +6,9 @@ import android.appwidget.AppWidgetProvider
 import android.content.Context
 import android.content.Intent
 import android.content.SharedPreferences
+import android.os.Bundle
 import android.util.Log
+import android.util.TypedValue
 import android.view.View
 import android.widget.RemoteViews
 import androidx.preference.PreferenceManager
@@ -78,6 +80,17 @@ class WeatherWidgetProvider : AppWidgetProvider() {
         super.onReceive(context, intent)
     }
 
+    override fun onAppWidgetOptionsChanged(
+        context: Context,
+        appWidgetManager: AppWidgetManager,
+        appWidgetId: Int,
+        newOptions: Bundle?
+    ) {
+        Log.d(TAG, "onAppWidgetOptionsChanged for widget $appWidgetId with options: $newOptions")
+        updateAppWidget(context, appWidgetManager, appWidgetId)
+        super.onAppWidgetOptionsChanged(context, appWidgetManager, appWidgetId, newOptions)
+    }
+
     private fun updateAppWidget(
         context: Context,
         appWidgetManager: AppWidgetManager,
@@ -95,6 +108,9 @@ class WeatherWidgetProvider : AppWidgetProvider() {
         val backgroundResId = getBackgroundForTheme(context)
         views.setInt(R.id.widget_root, "setBackgroundResource", backgroundResId)
 
+        // Apply theme-aware text colors for better contrast
+        applyThemeTextColors(context, views, widgetSize)
+
         // Set click intent to open main app
         val intent = Intent(context, MainActivity::class.java).apply {
             flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
@@ -109,6 +125,10 @@ class WeatherWidgetProvider : AppWidgetProvider() {
 
         // Update widget with current data
         updateWidgetDisplay(context, views, appWidgetId, widgetSize)
+
+        // Apply size-specific UI adjustments (text sizes, labels, hide less important info)
+        val (minWidthDp, minHeightDp) = getWidgetDimensions(appWidgetManager, appWidgetId)
+        applySizeAdjustments(context, views, widgetSize, minWidthDp, minHeightDp)
 
         // Update the widget
         appWidgetManager.updateAppWidget(appWidgetId, views)
@@ -287,16 +307,21 @@ class WeatherWidgetProvider : AppWidgetProvider() {
     }
 
     private fun getWidgetSize(appWidgetManager: AppWidgetManager, appWidgetId: Int): WidgetSize {
+        val (minWidth, minHeight) = getWidgetDimensions(appWidgetManager, appWidgetId)
+        // Treat very short heights (1 row tall) as SMALL regardless of width
+        return when {
+            minHeight <= 70 -> WidgetSize.SMALL // 3x1, 2x1, 4x1
+            minWidth <= 110 -> WidgetSize.SMALL // 1x2, 1x3, 1x4 narrow
+            minHeight <= 110 -> WidgetSize.MEDIUM // 3x2, 4x2 wide but short
+            else -> WidgetSize.LARGE
+        }
+    }
+
+    private fun getWidgetDimensions(appWidgetManager: AppWidgetManager, appWidgetId: Int): Pair<Int, Int> {
         val options = appWidgetManager.getAppWidgetOptions(appWidgetId)
         val minWidth = options.getInt(AppWidgetManager.OPTION_APPWIDGET_MIN_WIDTH)
         val minHeight = options.getInt(AppWidgetManager.OPTION_APPWIDGET_MIN_HEIGHT)
-        
-        // Determine size based on dimensions
-        return when {
-            minWidth <= 110 && minHeight <= 40 -> WidgetSize.SMALL
-            minWidth <= 180 && minHeight <= 110 -> WidgetSize.MEDIUM
-            else -> WidgetSize.LARGE
-        }
+        return Pair(minWidth, minHeight)
     }
 
     private fun getLayoutForSize(widgetSize: WidgetSize): Int {
@@ -308,19 +333,115 @@ class WeatherWidgetProvider : AppWidgetProvider() {
     }
 
     private fun getBackgroundForTheme(context: Context): Int {
-        val themeMode = WidgetUpdateSettings.getThemeMode(context)
-        val isDarkMode = when (themeMode) {
+        return if (isDarkMode(context)) R.drawable.widget_background_dark else R.drawable.widget_background_light
+    }
+
+    private fun isDarkMode(context: Context): Boolean {
+        return when (WidgetUpdateSettings.getThemeMode(context)) {
             WidgetUpdateSettings.THEME_DARK -> true
             WidgetUpdateSettings.THEME_LIGHT -> false
             WidgetUpdateSettings.THEME_AUTO -> {
-                // Check system theme
-                val nightModeFlags = context.resources.configuration.uiMode and 
-                    android.content.res.Configuration.UI_MODE_NIGHT_MASK
+                val nightModeFlags = context.resources.configuration.uiMode and
+                        android.content.res.Configuration.UI_MODE_NIGHT_MASK
                 nightModeFlags == android.content.res.Configuration.UI_MODE_NIGHT_YES
             }
             else -> false
         }
-        
-        return if (isDarkMode) R.drawable.widget_background_dark else R.drawable.widget_background_light
+    }
+
+    private fun applyThemeTextColors(context: Context, views: RemoteViews, widgetSize: WidgetSize) {
+        val dark = isDarkMode(context)
+        // Primary text: strong contrast
+        val primary = if (dark) 0xFFFFFFFF.toInt() else 0xFF111111.toInt()
+        // Secondary text: slightly dimmed but still accessible
+        val secondary = if (dark) 0xCCFFFFFF.toInt() else 0xFF444444.toInt()
+
+        when (widgetSize) {
+            WidgetSize.SMALL -> {
+                views.setTextColor(R.id.temperature_text, primary)
+                views.setTextColor(R.id.condition_text, secondary)
+                views.setTextColor(R.id.location_text, secondary)
+            }
+            WidgetSize.MEDIUM -> {
+                views.setTextColor(R.id.location_text, primary)
+                views.setTextColor(R.id.last_updated_text, secondary)
+                views.setTextColor(R.id.temperature_text, primary)
+                views.setTextColor(R.id.condition_text, secondary)
+                views.setTextColor(R.id.high_temp_label, secondary)
+                views.setTextColor(R.id.high_temp_text, primary)
+                views.setTextColor(R.id.humidity_label, secondary)
+                views.setTextColor(R.id.humidity_text, primary)
+                views.setTextColor(R.id.wind_label, secondary)
+                views.setTextColor(R.id.wind_text, primary)
+            }
+            WidgetSize.LARGE -> {
+                views.setTextColor(R.id.location_text, primary)
+                views.setTextColor(R.id.last_updated_text, secondary)
+                views.setTextColor(R.id.temperature_text, primary)
+                views.setTextColor(R.id.condition_text, secondary)
+                views.setTextColor(R.id.high_temp_label, secondary)
+                views.setTextColor(R.id.high_temp_text, primary)
+                views.setTextColor(R.id.humidity_label, secondary)
+                views.setTextColor(R.id.humidity_text, primary)
+                views.setTextColor(R.id.wind_label, secondary)
+                views.setTextColor(R.id.wind_text, primary)
+                views.setTextColor(R.id.feels_like_label, secondary)
+                views.setTextColor(R.id.feels_like_text, primary)
+            }
+        }
+    }
+
+    private fun applySizeAdjustments(
+        context: Context,
+        views: RemoteViews,
+        widgetSize: WidgetSize,
+        minWidthDp: Int,
+        minHeightDp: Int
+    ) {
+        when (widgetSize) {
+            WidgetSize.SMALL -> {
+                // For 1x2, 1x3, 1x4, 2x1, 3x1, 4x1: compact text sizes
+                val isOneRow = minHeightDp <= 70
+                // Tight height: favor one prominent line (temp) and minimal secondary
+                if (isOneRow) {
+                    views.setTextViewTextSize(R.id.temperature_text, TypedValue.COMPLEX_UNIT_SP, 15f)
+                    views.setTextViewTextSize(R.id.condition_text, TypedValue.COMPLEX_UNIT_SP, 9f)
+                    views.setTextViewTextSize(R.id.location_text, TypedValue.COMPLEX_UNIT_SP, 9f)
+                    // Hide condition if width is extremely tight to avoid clipping
+                    if (minWidthDp <= 120) {
+                        views.setViewVisibility(R.id.condition_text, View.GONE)
+                    } else {
+                        views.setViewVisibility(R.id.condition_text, View.VISIBLE)
+                    }
+                } else {
+                    views.setTextViewTextSize(R.id.temperature_text, TypedValue.COMPLEX_UNIT_SP, 16f)
+                    views.setTextViewTextSize(R.id.condition_text, TypedValue.COMPLEX_UNIT_SP, 10f)
+                    views.setTextViewTextSize(R.id.location_text, TypedValue.COMPLEX_UNIT_SP, 9f)
+                    views.setViewVisibility(R.id.condition_text, View.VISIBLE)
+                }
+                // Location visibility based on width
+                if (minWidthDp <= 90) {
+                    views.setViewVisibility(R.id.location_text, View.GONE)
+                } else {
+                    views.setViewVisibility(R.id.location_text, View.VISIBLE)
+                }
+            }
+            WidgetSize.MEDIUM -> {
+                // For 3x2, 4x2: slightly smaller text if width is tight, abbreviate labels, hide last updated if needed
+                if (minWidthDp <= 180) {
+                    views.setTextViewTextSize(R.id.temperature_text, TypedValue.COMPLEX_UNIT_SP, 20f)
+                    views.setTextViewTextSize(R.id.condition_text, TypedValue.COMPLEX_UNIT_SP, 11f)
+                    views.setTextViewText(R.id.high_temp_label, "H/L")
+                    views.setTextViewText(R.id.humidity_label, "Hum")
+                    views.setTextViewText(R.id.wind_label, "Wind")
+                    views.setViewVisibility(R.id.last_updated_text, View.GONE)
+                } else {
+                    views.setViewVisibility(R.id.last_updated_text, View.VISIBLE)
+                }
+            }
+            WidgetSize.LARGE -> {
+                // Leave as-is; large layout already fits well
+            }
+        }
     }
 }

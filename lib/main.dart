@@ -50,19 +50,36 @@ void main() async {
 /// Initialize current location and store in shared preferences for widget access
 Future<void> _initializeCurrentLocation(SharedPreferences prefs) async {
   try {
-    // Get current location
+    // Ensure location services are enabled
+    final serviceEnabled = await Geolocator.isLocationServiceEnabled();
+    if (!serviceEnabled) {
+      print('Location services are disabled; cannot initialize current location.');
+      return;
+    }
+
+    // Ensure permission (request if needed)
+    LocationPermission permission = await Geolocator.checkPermission();
+    if (permission == LocationPermission.denied) {
+      permission = await Geolocator.requestPermission();
+    }
+    if (permission == LocationPermission.deniedForever || permission == LocationPermission.denied) {
+      print('Precise location permission not granted; cannot initialize current location.');
+      return;
+    }
+
+    // Get a high-accuracy (fine) location fix
     final position = await Geolocator.getCurrentPosition(
-      desiredAccuracy: LocationAccuracy.medium,
-      timeLimit: Duration(seconds: 10),
+      desiredAccuracy: LocationAccuracy.high,
+      timeLimit: Duration(seconds: 15),
     );
 
     // Store coordinates in shared preferences for Android widget
     await prefs.setString('flutter.current_location_lat', position.latitude.toString());
     await prefs.setString('flutter.current_location_lon', position.longitude.toString());
 
-    print('Stored current location: ${position.latitude}, ${position.longitude}');
+    print('Stored current location (high accuracy): ${position.latitude}, ${position.longitude} (±${position.accuracy}m)');
   } catch (e) {
-    print('Failed to get current location for widget: $e');
+    print('Failed to get high-accuracy current location for widget: $e');
     // Don't throw error, just continue without current location
   }
 }
@@ -76,29 +93,42 @@ void _setupCurrentLocationChannel() {
       case 'getCurrentLocation':
         try {
           final prefs = await SharedPreferences.getInstance();
+
+          // Try to get a fresh high-accuracy location first
+          final serviceEnabled = await Geolocator.isLocationServiceEnabled();
+          if (serviceEnabled) {
+            LocationPermission permission = await Geolocator.checkPermission();
+            if (permission == LocationPermission.denied) {
+              permission = await Geolocator.requestPermission();
+            }
+            if (permission != LocationPermission.denied && permission != LocationPermission.deniedForever) {
+              try {
+                final position = await Geolocator.getCurrentPosition(
+                  desiredAccuracy: LocationAccuracy.high,
+                  timeLimit: Duration(seconds: 15),
+                );
+                // Store for future use
+                await prefs.setString('flutter.current_location_lat', position.latitude.toString());
+                await prefs.setString('flutter.current_location_lon', position.longitude.toString());
+                return '${position.latitude},${position.longitude}';
+              } catch (e) {
+                print('High-accuracy getCurrentPosition failed: $e');
+                // fall back to stored coords
+              }
+            } else {
+              print('Location permission denied for precise location.');
+            }
+          } else {
+            print('Location services are disabled.');
+          }
+
+          // Fall back to stored coordinates if available
           final lat = prefs.getString('flutter.current_location_lat');
           final lon = prefs.getString('flutter.current_location_lon');
-
           if (lat != null && lon != null) {
             return '$lat,$lon';
-          } else {
-            // Try to get current location if not stored
-            try {
-              final position = await Geolocator.getCurrentPosition(
-                desiredAccuracy: LocationAccuracy.medium,
-                timeLimit: Duration(seconds: 10),
-              );
-
-              // Store for future use
-              await prefs.setString('flutter.current_location_lat', position.latitude.toString());
-              await prefs.setString('flutter.current_location_lon', position.longitude.toString());
-
-              return '${position.latitude},${position.longitude}';
-            } catch (e) {
-              print('Failed to get current location: $e');
-              return null;
-            }
           }
+          return null;
         } catch (e) {
           print('Error getting current location: $e');
           return null;
@@ -158,17 +188,40 @@ Future<String> _handleGetWeatherForWidget(MethodCall call) async {
     // Handle current location request
     if (location == 'CURRENT_LOCATION') {
       try {
-        // Get current location
+        final serviceEnabled = await Geolocator.isLocationServiceEnabled();
+        if (!serviceEnabled) throw Exception('Location services disabled');
+
+        LocationPermission permission = await Geolocator.checkPermission();
+        if (permission == LocationPermission.denied) {
+          permission = await Geolocator.requestPermission();
+        }
+        if (permission == LocationPermission.denied || permission == LocationPermission.deniedForever) {
+          throw Exception('Location permission denied');
+        }
+
+        // Get a high-accuracy (fine) fix
         final position = await Geolocator.getCurrentPosition(
-          desiredAccuracy: LocationAccuracy.medium,
-          timeLimit: Duration(seconds: 10),
+          desiredAccuracy: LocationAccuracy.high,
+          timeLimit: Duration(seconds: 15),
         );
         location = '${position.latitude},${position.longitude}';
-        print('Using current location: $location');
+
+        // Persist for native widget usage
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.setString('flutter.current_location_lat', position.latitude.toString());
+        await prefs.setString('flutter.current_location_lon', position.longitude.toString());
+        print('Using current high-accuracy location: $location (±${position.accuracy}m)');
       } catch (e) {
-        print('Failed to get current location: $e');
-        // Fallback to default location
-        location = 'New York, NY';
+        print('Failed to get high-accuracy current location: $e');
+        // Fallback to stored coordinates or a default city
+        final prefs = await SharedPreferences.getInstance();
+        final lat = prefs.getString('flutter.current_location_lat');
+        final lon = prefs.getString('flutter.current_location_lon');
+        if (lat != null && lon != null) {
+          location = '$lat,$lon';
+        } else {
+          location = 'New York, NY';
+        }
       }
     }
 

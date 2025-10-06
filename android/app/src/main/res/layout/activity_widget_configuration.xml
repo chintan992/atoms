@@ -33,6 +33,35 @@
         android:textColor="@android:color/black"
         android:layout_marginBottom="8dp" />
 
+    <!-- Location permission status and settings shortcut -->
+    <TextView
+        android:id="@+id/location_permission_status_text"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="Location permission: checking..."
+        android:textSize="14sp"
+        android:textColor="@android:color/black"
+        android:layout_marginBottom="8dp" />
+
+    <Button
+        android:id="@+id/open_app_settings_button"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Open App Settings"
+        android:textColor="@android:color/white"
+        android:background="@android:color/holo_blue_light"
+        android:layout_marginBottom="8dp"
+        android:visibility="gone" />
+
+    <Button
+        android:id="@+id/request_precise_location_button"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Request Precise Location"
+        android:textColor="@android:color/white"
+        android:background="@android:color/holo_green_dark"
+        android:layout_marginBottom="12dp" />
+
     <TextView
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
