@@ -19,18 +19,49 @@
     <TextView
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:text="Select Location:"
+        android:text="Location:"
         android:textSize="16sp"
         android:textColor="@android:color/black"
         android:layout_marginBottom="8dp" />
 
-    <Spinner
-        android:id="@+id/location_spinner"
+    <CheckBox
+        android:id="@+id/use_current_location_checkbox"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_marginBottom="24dp"
-        android:background="@android:drawable/btn_dropdown"
-        android:spinnerMode="dropdown" />
+        android:text="Use Current Location"
+        android:textSize="16sp"
+        android:textColor="@android:color/black"
+        android:layout_marginBottom="8dp" />
+
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Or enter custom location:"
+        android:textSize="14sp"
+        android:textColor="@android:color/darker_gray"
+        android:layout_marginBottom="8dp" />
+
+    <EditText
+        android:id="@+id/location_edit_text"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:hint="Type location name (e.g., New York, NY)"
+        android:textSize="16sp"
+        android:textColor="@android:color/black"
+        android:background="@android:drawable/edit_text"
+        android:padding="12dp"
+        android:layout_marginBottom="8dp"
+        android:enabled="false" />
+
+    <ListView
+        android:id="@+id/location_suggestions_list"
+        android:layout_width="match_parent"
+        android:layout_height="150dp"
+        android:layout_marginBottom="16dp"
+        android:background="@android:color/white"
+        android:divider="@android:color/darker_gray"
+        android:dividerHeight="1dp"
+        android:visibility="gone" />
 
     <!-- Display Options -->
     <TextView
@@ -80,6 +111,25 @@
 
     <Spinner
         android:id="@+id/update_frequency_spinner"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginBottom="16dp"
+        android:background="@android:drawable/btn_dropdown"
+        android:spinnerMode="dropdown" />
+
+    <!-- Theme Selection -->
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Widget Theme:"
+        android:textSize="16sp"
+        android:textStyle="bold"
+        android:textColor="@android:color/black"
+        android:layout_marginTop="8dp"
+        android:layout_marginBottom="8dp" />
+
+    <Spinner
+        android:id="@+id/theme_spinner"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:layout_marginBottom="24dp"

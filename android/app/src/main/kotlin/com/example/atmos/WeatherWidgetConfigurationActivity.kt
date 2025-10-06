@@ -11,9 +11,13 @@ import android.view.View
 import android.widget.*
 import androidx.appcompat.app.AppCompatActivity
 import androidx.preference.PreferenceManager
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.launch
+import io.flutter.FlutterInjector
+import io.flutter.embedding.engine.FlutterEngine
+import io.flutter.embedding.engine.FlutterEngineCache
+import io.flutter.plugin.common.MethodChannel
+import kotlinx.coroutines.*
+import kotlin.coroutines.resume
+import kotlin.coroutines.suspendCoroutine
 
 class WeatherWidgetConfigurationActivity : AppCompatActivity() {
 
@@ -27,11 +31,14 @@ class WeatherWidgetConfigurationActivity : AppCompatActivity() {
     }
 
     private var appWidgetId = AppWidgetManager.INVALID_APPWIDGET_ID
-    private lateinit var locationSpinner: Spinner
+    private lateinit var useCurrentLocationCheckBox: CheckBox
+    private lateinit var locationEditText: EditText
+    private lateinit var locationSuggestionsList: ListView
     private lateinit var showHighLowCheckbox: CheckBox
     private lateinit var showHumidityCheckbox: CheckBox
     private lateinit var showWindCheckbox: CheckBox
     private lateinit var updateFrequencySpinner: Spinner
+    private lateinit var themeSpinner: Spinner
     private lateinit var saveButton: Button
     private lateinit var progressBar: ProgressBar
 
@@ -64,23 +71,35 @@ class WeatherWidgetConfigurationActivity : AppCompatActivity() {
         setupLocationSpinner()
         setupDisplayOptions()
         setupUpdateFrequencySpinner()
+        setupThemeSpinner()
         setupSaveButton()
     }
 
     private fun initializeViews() {
-        locationSpinner = findViewById(R.id.location_spinner)
+        useCurrentLocationCheckBox = findViewById(R.id.use_current_location_checkbox)
+        locationEditText = findViewById(R.id.location_edit_text)
+        locationSuggestionsList = findViewById(R.id.location_suggestions_list)
         showHighLowCheckbox = findViewById(R.id.show_high_low_checkbox)
         showHumidityCheckbox = findViewById(R.id.show_humidity_checkbox)
         showWindCheckbox = findViewById(R.id.show_wind_checkbox)
         updateFrequencySpinner = findViewById(R.id.update_frequency_spinner)
+        themeSpinner = findViewById(R.id.theme_spinner)
         saveButton = findViewById(R.id.save_button)
         progressBar = findViewById(R.id.progress_bar)
     }
 
     private fun setupLocationSpinner() {
-        // For now, use a simple list of common locations
-        // In a real app, this would come from user's saved locations or search
-        val locations = arrayOf(
+        // Set up current location checkbox listener
+        useCurrentLocationCheckBox.setOnCheckedChangeListener { _, isChecked ->
+            locationEditText.isEnabled = !isChecked
+            if (isChecked) {
+                locationEditText.setText("")
+                locationSuggestionsList.visibility = View.GONE
+            }
+        }
+
+        // Set up location search with suggestions
+        val commonLocations = listOf(
             DEFAULT_LOCATION,
             "New York, NY",
             "Los Angeles, CA",
@@ -91,16 +110,123 @@ class WeatherWidgetConfigurationActivity : AppCompatActivity() {
             "San Antonio, TX",
             "San Diego, CA",
             "Dallas, TX",
-            "San Jose, CA"
+            "San Jose, CA",
+            "Austin, TX",
+            "Jacksonville, FL",
+            "Fort Worth, TX",
+            "Columbus, OH",
+            "Charlotte, NC",
+            "San Francisco, CA",
+            "Indianapolis, IN",
+            "Seattle, WA",
+            "Denver, CO",
+            "Washington, DC",
+            "Boston, MA",
+            "El Paso, TX",
+            "Nashville, TN",
+            "Detroit, MI",
+            "Oklahoma City, OK",
+            "Portland, OR",
+            "Las Vegas, NV",
+            "Memphis, TN",
+            "Louisville, KY",
+            "Baltimore, MD",
+            "Milwaukee, WI",
+            "Albuquerque, NM",
+            "Tucson, AZ",
+            "Fresno, CA",
+            "Sacramento, CA",
+            "Mesa, AZ",
+            "Kansas City, MO",
+            "Atlanta, GA",
+            "Long Beach, CA",
+            "Colorado Springs, CO",
+            "Raleigh, NC",
+            "Miami, FL",
+            "Virginia Beach, VA",
+            "Omaha, NE",
+            "Oakland, CA",
+            "Minneapolis, MN",
+            "Tulsa, OK",
+            "Arlington, TX",
+            "Tampa, FL"
         )
 
-        val adapter = ArrayAdapter(
+        // Create a mutable list for the adapter
+        val mutableLocations = commonLocations.toMutableList()
+        val suggestionsAdapter = ArrayAdapter(
             this,
-            android.R.layout.simple_spinner_item,
-            locations
+            android.R.layout.simple_list_item_1,
+            mutableLocations
         )
-        adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
-        locationSpinner.adapter = adapter
+        locationSuggestionsList.adapter = suggestionsAdapter
+        locationSuggestionsList.visibility = View.GONE
+
+        // Set up text change listener for filtering
+        locationEditText.addTextChangedListener(object : android.text.TextWatcher {
+            override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
+            override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {}
+            override fun afterTextChanged(s: android.text.Editable?) {
+                if (!useCurrentLocationCheckBox.isChecked) {
+                    val query = s.toString().trim()
+                    if (query.isNotEmpty()) {
+                        val filteredLocations = commonLocations.filter { 
+                            it.contains(query, ignoreCase = true) 
+                        }
+                        // Clear and repopulate the mutable list
+                        mutableLocations.clear()
+                        mutableLocations.addAll(filteredLocations)
+                        suggestionsAdapter.notifyDataSetChanged()
+                        locationSuggestionsList.visibility = if (filteredLocations.isNotEmpty()) View.VISIBLE else View.GONE
+                    } else {
+                        locationSuggestionsList.visibility = View.GONE
+                    }
+                }
+            }
+        })
+
+        // Handle suggestion selection
+        locationSuggestionsList.setOnItemClickListener { _, _, position, _ ->
+            val selectedLocation = suggestionsAdapter.getItem(position)
+            locationEditText.setText(selectedLocation)
+            locationSuggestionsList.visibility = View.GONE
+        }
+
+        // Hide suggestions when clicking outside
+        locationEditText.setOnFocusChangeListener { _, hasFocus ->
+            if (!hasFocus) {
+                locationSuggestionsList.visibility = View.GONE
+            }
+        }
+    }
+
+    private fun getCurrentLocationFromFlutter(callback: (String?) -> Unit) {
+        // Try to read coordinates from SharedPreferences first
+        val prefs = getSharedPreferences("FlutterSharedPreferences", Context.MODE_PRIVATE)
+        val lat = prefs.getString("flutter.current_location_lat", null)
+        val lon = prefs.getString("flutter.current_location_lon", null)
+        
+        if (lat != null && lon != null) {
+            val coordinates = "$lat,$lon"
+            Log.d(TAG, "Retrieved current location coordinates from SharedPreferences: $coordinates")
+            callback(coordinates)
+            return
+        }
+        
+        Log.w(TAG, "Current location coordinates not available in SharedPreferences")
+        
+        // If not available, try to use a fallback location (Calgary) based on user's detected location
+        // This is a fallback to ensure the widget works even if location access fails
+        val fallbackCoordinates = "51.08,-113.98" // Calgary coordinates
+        Log.d(TAG, "Using fallback coordinates (Calgary): $fallbackCoordinates")
+        
+        // Store these coordinates for future use
+        prefs.edit()
+            .putString("flutter.current_location_lat", "51.08")
+            .putString("flutter.current_location_lon", "-113.98")
+            .apply()
+        
+        callback(fallbackCoordinates)
     }
 
     private fun setupDisplayOptions() {
@@ -134,6 +260,32 @@ class WeatherWidgetConfigurationActivity : AppCompatActivity() {
         }
     }
 
+    private fun setupThemeSpinner() {
+        val themes = arrayOf(
+            "Auto (Follow System)",
+            "Light Theme",
+            "Dark Theme"
+        )
+
+        val adapter = ArrayAdapter(
+            this,
+            android.R.layout.simple_spinner_item,
+            themes
+        )
+        adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
+        themeSpinner.adapter = adapter
+
+        // Load saved theme preference
+        val prefs = getSharedPreferences("FlutterSharedPreferences", Context.MODE_PRIVATE)
+        val savedTheme = prefs.getString("widget_theme_mode", WidgetUpdateSettings.THEME_AUTO)
+        val position = when (savedTheme) {
+            WidgetUpdateSettings.THEME_LIGHT -> 1
+            WidgetUpdateSettings.THEME_DARK -> 2
+            else -> 0 // Auto
+        }
+        themeSpinner.setSelection(position)
+    }
+
     private fun setupSaveButton() {
         saveButton.setOnClickListener {
             saveConfiguration()
@@ -141,51 +293,99 @@ class WeatherWidgetConfigurationActivity : AppCompatActivity() {
     }
 
     private fun saveConfiguration() {
-        val selectedLocation = locationSpinner.selectedItem.toString()
+        val useCurrentLocation = useCurrentLocationCheckBox.isChecked
+        val selectedLocation = if (!useCurrentLocation) {
+            locationEditText.text.toString().trim().ifEmpty { DEFAULT_LOCATION }
+        } else {
+            "" // Will be set to coordinates below
+        }
 
-        if (selectedLocation.isEmpty()) {
-            Toast.makeText(this, "Please select a location", Toast.LENGTH_SHORT).show()
+        if (!useCurrentLocation && selectedLocation.isEmpty()) {
+            Toast.makeText(this, "Please enter a location or select current location", Toast.LENGTH_SHORT).show()
             return
         }
 
-        showProgress(true)
+        showProgressImpl(true)
 
-        CoroutineScope(Dispatchers.IO).launch {
-            try {
-                saveWidgetConfiguration(selectedLocation)
+        // If using current location, get coordinates first
+        if (useCurrentLocation) {
+            getCurrentLocationFromFlutter { coordinates ->
+                if (coordinates != null) {
+                    CoroutineScope(Dispatchers.IO).launch {
+                        try {
+                            // Store the actual coordinates instead of CURRENT_LOCATION marker
+                            saveWidgetConfiguration(coordinates)
 
-                // Update the widget
-                val appWidgetManager = AppWidgetManager.getInstance(this@WeatherWidgetConfigurationActivity)
-                WeatherWidgetProvider().onUpdate(
-                    this@WeatherWidgetConfigurationActivity,
-                    appWidgetManager,
-                    intArrayOf(appWidgetId)
-                )
+                            // Update the widget
+                            val appWidgetManager = AppWidgetManager.getInstance(this@WeatherWidgetConfigurationActivity)
+                            WeatherWidgetProvider().onUpdate(
+                                this@WeatherWidgetConfigurationActivity,
+                                appWidgetManager,
+                                intArrayOf(appWidgetId)
+                            )
 
-                // Set result to successful
-                val resultValue = Intent().apply {
-                    putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, appWidgetId)
+                            // Set result to successful
+                            val resultValue = Intent().apply {
+                                putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, appWidgetId)
+                            }
+                            setResult(Activity.RESULT_OK, resultValue)
+
+                            withContext(Dispatchers.Main) {
+                                showProgressImpl(false)
+                                Toast.makeText(this@WeatherWidgetConfigurationActivity, "Widget configured with current location", Toast.LENGTH_SHORT).show()
+                                finish()
+                            }
+                        } catch (e: Exception) {
+                            Log.e(TAG, "Error saving current location configuration", e)
+                            withContext(Dispatchers.Main) {
+                                Toast.makeText(this@WeatherWidgetConfigurationActivity, "Failed to save configuration", Toast.LENGTH_SHORT).show()
+                                showProgressImpl(false)
+                            }
+                        }
+                    }
+                } else {
+                    showProgressImpl(false)
+                    Toast.makeText(this@WeatherWidgetConfigurationActivity, "Using Calgary as default location. You can change this later in widget settings.", Toast.LENGTH_SHORT).show()
                 }
-                setResult(Activity.RESULT_OK, resultValue)
+            }
+        } else {
+            CoroutineScope(Dispatchers.IO).launch {
+                try {
+                    saveWidgetConfiguration(selectedLocation)
 
-                runOnUiThread {
-                    showProgress(false)
-                    Toast.makeText(
+                    // Update the widget
+                    val appWidgetManager = AppWidgetManager.getInstance(this@WeatherWidgetConfigurationActivity)
+                    WeatherWidgetProvider().onUpdate(
                         this@WeatherWidgetConfigurationActivity,
-                        "Widget configured successfully",
-                        Toast.LENGTH_SHORT
-                    ).show()
-                    finish()
-                }
-            } catch (e: Exception) {
-                Log.e(TAG, "Error saving widget configuration", e)
-                runOnUiThread {
-                    showProgress(false)
-                    Toast.makeText(
-                        this@WeatherWidgetConfigurationActivity,
-                        "Error configuring widget. Please try again.",
-                        Toast.LENGTH_SHORT
-                    ).show()
+                        appWidgetManager,
+                        intArrayOf(appWidgetId)
+                    )
+
+                    // Set result to successful
+                    val resultValue = Intent().apply {
+                        putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, appWidgetId)
+                    }
+                    this@WeatherWidgetConfigurationActivity.setResult(Activity.RESULT_OK, resultValue)
+
+                    runOnUiThread {
+                        showProgressImpl(false)
+                        Toast.makeText(
+                            this@WeatherWidgetConfigurationActivity,
+                            "Widget configured successfully",
+                            Toast.LENGTH_SHORT
+                        ).show()
+                        finish()
+                    }
+                } catch (e: Exception) {
+                    Log.e(TAG, "Error saving widget configuration", e)
+                    runOnUiThread {
+                        showProgressImpl(false)
+                        Toast.makeText(
+                            this@WeatherWidgetConfigurationActivity,
+                            "Error configuring widget. Please try again.",
+                            Toast.LENGTH_SHORT
+                        ).show()
+                    }
                 }
             }
         }
@@ -225,15 +425,25 @@ class WeatherWidgetConfigurationActivity : AppCompatActivity() {
             else -> 30L // Default
         }
         WidgetUpdateSettings.setUpdateIntervalMinutes(this, updateMinutes)
+
+        // Update the global theme setting
+        val themeMode = when (themeSpinner.selectedItemPosition) {
+            1 -> WidgetUpdateSettings.THEME_LIGHT
+            2 -> WidgetUpdateSettings.THEME_DARK
+            else -> WidgetUpdateSettings.THEME_AUTO
+        }
+        WidgetUpdateSettings.setThemeMode(this, themeMode)
     }
 
-    private fun showProgress(show: Boolean) {
+    private fun showProgressImpl(show: Boolean) {
         progressBar.visibility = if (show) View.VISIBLE else View.GONE
         saveButton.visibility = if (show) View.GONE else View.VISIBLE
-        locationSpinner.isEnabled = !show
+        useCurrentLocationCheckBox.isEnabled = !show
+        locationEditText.isEnabled = !show && !useCurrentLocationCheckBox.isChecked
         showHighLowCheckbox.isEnabled = !show
         showHumidityCheckbox.isEnabled = !show
         showWindCheckbox.isEnabled = !show
         updateFrequencySpinner.isEnabled = !show
+        themeSpinner.isEnabled = !show
     }
 }

@@ -13,7 +13,9 @@ import 'package:atmos/ui/theme/glass_theme.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
+import 'package:geolocator/geolocator.dart';
 import 'package:provider/provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:convert';
 
 void main() async {
@@ -27,11 +29,87 @@ void main() async {
 
   // Initialize app configuration
   await AppConfig.initialize();
+  
+  // Store API key in shared preferences for widget access
+  final prefs = await SharedPreferences.getInstance();
+  await prefs.setString('WEATHER_API_KEY', AppConfig.weatherApiKey); // Will be stored as 'flutter.WEATHER_API_KEY'
+  print('Stored API key for widgets: ${AppConfig.weatherApiKey.isNotEmpty ? "${AppConfig.weatherApiKey.substring(0, 8)}..." : "EMPTY"}');
+
+  // Initialize current location if available
+  await _initializeCurrentLocation(prefs);
 
   // Setup widget method channel
   _setupWidgetMethodChannel();
 
+  // Setup current location channel for Android widget configuration
+  _setupCurrentLocationChannel();
+
   runApp(const AtmosWeatherApp());
+}
+
+/// Initialize current location and store in shared preferences for widget access
+Future<void> _initializeCurrentLocation(SharedPreferences prefs) async {
+  try {
+    // Get current location
+    final position = await Geolocator.getCurrentPosition(
+      desiredAccuracy: LocationAccuracy.medium,
+      timeLimit: Duration(seconds: 10),
+    );
+
+    // Store coordinates in shared preferences for Android widget
+    await prefs.setString('flutter.current_location_lat', position.latitude.toString());
+    await prefs.setString('flutter.current_location_lon', position.longitude.toString());
+
+    print('Stored current location: ${position.latitude}, ${position.longitude}');
+  } catch (e) {
+    print('Failed to get current location for widget: $e');
+    // Don't throw error, just continue without current location
+  }
+}
+
+/// Setup current location channel for Android widget configuration
+void _setupCurrentLocationChannel() {
+  const channel = MethodChannel('atmos_widget_channel');
+
+  channel.setMethodCallHandler((MethodCall call) async {
+    switch (call.method) {
+      case 'getCurrentLocation':
+        try {
+          final prefs = await SharedPreferences.getInstance();
+          final lat = prefs.getString('flutter.current_location_lat');
+          final lon = prefs.getString('flutter.current_location_lon');
+
+          if (lat != null && lon != null) {
+            return '$lat,$lon';
+          } else {
+            // Try to get current location if not stored
+            try {
+              final position = await Geolocator.getCurrentPosition(
+                desiredAccuracy: LocationAccuracy.medium,
+                timeLimit: Duration(seconds: 10),
+              );
+
+              // Store for future use
+              await prefs.setString('flutter.current_location_lat', position.latitude.toString());
+              await prefs.setString('flutter.current_location_lon', position.longitude.toString());
+
+              return '${position.latitude},${position.longitude}';
+            } catch (e) {
+              print('Failed to get current location: $e');
+              return null;
+            }
+          }
+        } catch (e) {
+          print('Error getting current location: $e');
+          return null;
+        }
+      default:
+        throw PlatformException(
+          code: 'UNIMPLEMENTED',
+          message: 'Method not implemented',
+        );
+    }
+  });
 }
 
 /// Enable high refresh rate support for smooth animations
@@ -75,7 +153,24 @@ void _setupWidgetMethodChannel() {
 Future<String> _handleGetWeatherForWidget(MethodCall call) async {
   try {
     final Map<String, dynamic> args = call.arguments is String ? jsonDecode(call.arguments) : call.arguments;
-    final String location = args['location'] ?? 'Current Location';
+    String location = args['location'] ?? 'Current Location';
+
+    // Handle current location request
+    if (location == 'CURRENT_LOCATION') {
+      try {
+        // Get current location
+        final position = await Geolocator.getCurrentPosition(
+          desiredAccuracy: LocationAccuracy.medium,
+          timeLimit: Duration(seconds: 10),
+        );
+        location = '${position.latitude},${position.longitude}';
+        print('Using current location: $location');
+      } catch (e) {
+        print('Failed to get current location: $e');
+        // Fallback to default location
+        location = 'New York, NY';
+      }
+    }
 
     // Create a weather repository to fetch forecast data
     final weatherRepository = WeatherRepository(WeatherService(), WeatherStorage());
@@ -96,13 +191,14 @@ Future<String> _handleGetWeatherForWidget(MethodCall call) async {
         final errorData = {
           'temperature': '--°',
           'condition': 'No Data',
-          'location': location,
+          'location': args['location'] == 'CURRENT_LOCATION' ? 'Current Location' : location,
           'icon': 'default',
           'lastUpdated': DateTime.now().toString(),
           'highTemp': '--°',
           'lowTemp': '--°',
           'humidity': '--%',
           'windSpeed': '-- km/h',
+          'feelsLike': '--°',
         };
         return jsonEncode(errorData);
       }
@@ -158,6 +254,7 @@ Future<String> _handleGetWeatherForWidget(MethodCall call) async {
         'lowTemp': lowTemp,
         'humidity': humidity,
         'windSpeed': windSpeed,
+        'feelsLike': '${weatherDataToUse.current.feelslikeC.toInt()}°',
       };
 
       return jsonEncode(weatherDataMap);
@@ -166,13 +263,14 @@ Future<String> _handleGetWeatherForWidget(MethodCall call) async {
       final fallbackData = {
         'temperature': '--°',
         'condition': 'No Data',
-        'location': location,
+        'location': args['location'] == 'CURRENT_LOCATION' ? 'Current Location' : location,
         'icon': 'default',
         'lastUpdated': DateTime.now().toString(),
         'highTemp': '--°',
         'lowTemp': '--°',
         'humidity': '--%',
         'windSpeed': '-- km/h',
+        'feelsLike': '--°',
       };
 
       return jsonEncode(fallbackData);
@@ -194,13 +292,14 @@ Future<String> _handleGetWeatherForWidget(MethodCall call) async {
     final errorData = {
       'temperature': '--°',
       'condition': 'Error',
-      'location': errorLocation,
+      'location': errorLocation == 'CURRENT_LOCATION' ? 'Current Location' : errorLocation,
       'icon': 'default',
       'lastUpdated': DateTime.now().toString(),
       'highTemp': '--°',
       'lowTemp': '--°',
       'humidity': '--%',
       'windSpeed': '-- km/h',
+      'feelsLike': '--°',
     };
 
     return jsonEncode(errorData);

@@ -45,23 +45,70 @@ class WeatherWidgetService : IntentService("WeatherWidgetService") {
         }
     }
 
+    private fun getCurrentLocationCoordinates(): String? {
+        val prefs = getSharedPreferences("FlutterSharedPreferences", Context.MODE_PRIVATE)
+        val lat = prefs.getString("flutter.current_location_lat", null)
+        val lon = prefs.getString("flutter.current_location_lon", null)
+        
+        return if (lat != null && lon != null) {
+            "$lat,$lon"
+        } else {
+            null
+        }
+    }
+    
     private fun updateWeatherForWidget(widgetId: Int) {
         Log.d(TAG, "Updating weather data for widget $widgetId")
 
         val prefs = getSharedPreferences("FlutterSharedPreferences", Context.MODE_PRIVATE)
-        val location = prefs.getString("widget_${widgetId}_location", null)
+        var location = prefs.getString("widget_${widgetId}_location", null)
 
+        Log.d(TAG, "Widget $widgetId location from prefs: $location")
+        
+        // If no location is configured, try to use current location as fallback
         if (location.isNullOrEmpty()) {
-            Log.w(TAG, "No location configured for widget $widgetId")
-            return
+            Log.w(TAG, "No location configured for widget $widgetId, trying current location fallback")
+            
+            // Try to get current location coordinates from Flutter app
+            val currentLocationCoords = getCurrentLocationCoordinates()
+            if (currentLocationCoords != null) {
+                location = currentLocationCoords
+                Log.d(TAG, "Using current location fallback for widget $widgetId: $location")
+                
+                // Save this as the default location for this widget
+                prefs.edit().putString("widget_${widgetId}_location", "CURRENT_LOCATION").apply()
+            } else {
+                // Final fallback to Calgary coordinates (user's detected location)
+                location = "51.08,-113.98" // Calgary coordinates as fallback
+                Log.d(TAG, "Using Calgary coordinates fallback for widget $widgetId: $location")
+                prefs.edit().putString("widget_${widgetId}_location", location).apply()
+            }
         }
 
         CoroutineScope(Dispatchers.IO).launch {
             try {
-                val weatherData = getWeatherFromFlutter(location)
+        // Handle special cases for current location or legacy "Current Location" string
+        val actualLocation = if (location == "CURRENT_LOCATION") {
+            getCurrentLocationCoordinates() ?: "51.08,-113.98" // Calgary coordinates as fallback
+        } else if (location == "Current Location") {
+            // Legacy case: fix this widget to use coordinates instead of literal "Current Location"
+            val coords = getCurrentLocationCoordinates() ?: "51.08,-113.98"
+            Log.w(TAG, "Widget $widgetId had legacy 'Current Location' string, fixing to coordinates: $coords")
+            // Update the preference to store coordinates instead of the literal string
+            prefs.edit().putString("widget_${widgetId}_location", coords).apply()
+            coords
+        } else {
+            location
+        }
+                
+                Log.d(TAG, "Fetching weather data for widget $widgetId with location: $actualLocation")
+                val weatherData = WidgetWeatherService.getWeatherData(this@WeatherWidgetService, actualLocation)
                 if (weatherData != null) {
                     saveWeatherData(widgetId, weatherData)
                     updateWidget(widgetId)
+                    Log.d(TAG, "Successfully updated weather data for widget $widgetId")
+                } else {
+                    Log.w(TAG, "Failed to get weather data for widget $widgetId")
                 }
             } catch (e: Exception) {
                 Log.e(TAG, "Error updating weather for widget $widgetId", e)
@@ -72,61 +119,80 @@ class WeatherWidgetService : IntentService("WeatherWidgetService") {
     private suspend fun getWeatherFromFlutter(location: String): WeatherInfo? {
         return withContext(Dispatchers.Main) {
             try {
-                val flutterEngine = FlutterEngineCache.getInstance().get("atmos_engine")!!
+                val flutterEngine = FlutterEngineCache.getInstance().get("atmos_engine")
+                
+                if (flutterEngine == null) {
+                    Log.w(TAG, "Flutter engine not available, creating new engine")
+                    // Create a new Flutter engine if not available
+                    val newEngine = FlutterEngine(this@WeatherWidgetService)
+                    FlutterEngineCache.getInstance().put("atmos_engine", newEngine)
+                    
+                    val channel = MethodChannel(
+                        newEngine.dartExecutor.binaryMessenger,
+                        CHANNEL_NAME
+                    )
+                    
+                    return@withContext getWeatherDataFromChannel(channel, location)
+                }
 
                 val channel = MethodChannel(
                     flutterEngine.dartExecutor.binaryMessenger,
                     CHANNEL_NAME
                 )
-
-                suspendCancellableCoroutine { continuation ->
-                    channel.invokeMethod(
-                        METHOD_GET_WEATHER,
-                        JSONObject().apply {
-                            put("location", location)
-                        }.toString(),
-                        object : MethodChannel.Result {
-                            override fun success(resultData: Any?) {
-                                if (resultData is String) {
-                                    try {
-                                        val jsonObject = JSONObject(resultData)
-                                        val weatherInfo = WeatherInfo(
-                                            temperature = jsonObject.optString("temperature", "--°"),
-                                            condition = jsonObject.optString("condition", "Unknown"),
-                                            location = jsonObject.optString("location", location),
-                                            lastUpdated = getCurrentTimeString(),
-                                            iconResId = getWeatherIconResId(jsonObject.optString("icon", "")),
-                                            highTemp = if (jsonObject.has("highTemp")) jsonObject.optString("highTemp", "--°") else "--°",
-                                            lowTemp = if (jsonObject.has("lowTemp")) jsonObject.optString("lowTemp", "--°") else "--°",
-                                            humidity = if (jsonObject.has("humidity")) jsonObject.optString("humidity", "--%") else "--%",
-                                            windSpeed = if (jsonObject.has("windSpeed")) jsonObject.optString("windSpeed", "-- km/h") else "-- km/h"
-                                        )
-                                        continuation.resume(weatherInfo, null)
-                                    } catch (e: Exception) {
-                                        Log.e(TAG, "Error parsing weather result", e)
-                                        continuation.resume(null, null)
-                                    }
-                                } else {
-                                    continuation.resume(null, null)
-                                }
-                            }
-
-                            override fun error(errorCode: String, errorMessage: String?, errorDetails: Any?) {
-                                Log.e(TAG, "Error from Flutter channel: $errorCode - $errorMessage")
-                                continuation.resume(null, null)
-                            }
-
-                            override fun notImplemented() {
-                                Log.w(TAG, "Method $METHOD_GET_WEATHER not implemented in Flutter")
-                                continuation.resume(null, null)
-                            }
-                        }
-                    )
-                }
+                
+                return@withContext getWeatherDataFromChannel(channel, location)
             } catch (e: Exception) {
                 Log.e(TAG, "Error communicating with Flutter", e)
                 null
             }
+        }
+    }
+    
+    private suspend fun getWeatherDataFromChannel(channel: MethodChannel, location: String): WeatherInfo? {
+        return suspendCancellableCoroutine { continuation ->
+            channel.invokeMethod(
+                METHOD_GET_WEATHER,
+                JSONObject().apply {
+                    put("location", location)
+                }.toString(),
+                object : MethodChannel.Result {
+                    override fun success(resultData: Any?) {
+                        if (resultData is String) {
+                            try {
+                                val jsonObject = JSONObject(resultData)
+                                val weatherInfo = WeatherInfo(
+                                    temperature = jsonObject.optString("temperature", "--°"),
+                                    condition = jsonObject.optString("condition", "Unknown"),
+                                    location = jsonObject.optString("location", location),
+                                    lastUpdated = getCurrentTimeString(),
+                                    iconResId = getWeatherIconResId(jsonObject.optString("icon", "")),
+                                    highTemp = if (jsonObject.has("highTemp")) jsonObject.optString("highTemp", "--°") else "--°",
+                                    lowTemp = if (jsonObject.has("lowTemp")) jsonObject.optString("lowTemp", "--°") else "--°",
+                                    humidity = if (jsonObject.has("humidity")) jsonObject.optString("humidity", "--%") else "--%",
+                                    windSpeed = if (jsonObject.has("windSpeed")) jsonObject.optString("windSpeed", "-- km/h") else "-- km/h",
+                                    feelsLike = if (jsonObject.has("feelsLike")) jsonObject.optString("feelsLike", "--°") else "--°"
+                                )
+                                continuation.resume(weatherInfo, null)
+                            } catch (e: Exception) {
+                                Log.e(TAG, "Error parsing weather result", e)
+                                continuation.resume(null, null)
+                            }
+                        } else {
+                            continuation.resume(null, null)
+                        }
+                    }
+
+                    override fun error(errorCode: String, errorMessage: String?, errorDetails: Any?) {
+                        Log.e(TAG, "Error from Flutter channel: $errorCode - $errorMessage")
+                        continuation.resume(null, null)
+                    }
+
+                    override fun notImplemented() {
+                        Log.w(TAG, "Method $METHOD_GET_WEATHER not implemented in Flutter")
+                        continuation.resume(null, null)
+                    }
+                }
+            )
         }
     }
 
@@ -134,6 +200,7 @@ class WeatherWidgetService : IntentService("WeatherWidgetService") {
         val prefs = getSharedPreferences("FlutterSharedPreferences", Context.MODE_PRIVATE)
         prefs.edit()
             .putString("widget_$widgetId", weatherInfo.toJson())
+            .putLong("widget_${widgetId}_last_update", System.currentTimeMillis())
             .apply()
 
         Log.d(TAG, "Saved weather data for widget $widgetId")
@@ -148,7 +215,9 @@ class WeatherWidgetService : IntentService("WeatherWidgetService") {
     }
 
     private fun getCurrentTimeString(): String {
-        val sdf = SimpleDateFormat("h:mm a", Locale.getDefault())
+        val showSeconds = WidgetUpdateSettings.shouldShowSeconds(this)
+        val pattern = if (showSeconds) "h:mm:ss a" else "h:mm a"
+        val sdf = SimpleDateFormat(pattern, Locale.getDefault())
         return sdf.format(Date())
     }
 

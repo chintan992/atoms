@@ -191,14 +191,15 @@ class WeatherUpdateWorker(private val context: Context, workerParams: WorkerPara
                 val prefs = context.getSharedPreferences("FlutterSharedPreferences", Context.MODE_PRIVATE)
                 val location = prefs.getString("widget_${widgetId}_location", null)
 
+                Log.d(TAG, "Widget $widgetId location from prefs: $location")
                 if (location.isNullOrEmpty()) {
                     Log.w(TAG, "No location configured for widget $widgetId")
                     return@withContext false
                 }
 
-                // Get weather data from Flutter with timeout
+                // Get weather data from direct API call
                 val weatherData = try {
-                    getWeatherFromFlutter(location)
+                    WidgetWeatherService.getWeatherData(context, location)
                 } catch (e: Exception) {
                     Log.e(TAG, "Exception getting weather data for widget $widgetId", e)
                     null
@@ -265,7 +266,8 @@ class WeatherUpdateWorker(private val context: Context, workerParams: WorkerPara
                                         highTemp = if (jsonObject.has("highTemp")) jsonObject.optString("highTemp", "--°") else "--°",
                                         lowTemp = if (jsonObject.has("lowTemp")) jsonObject.optString("lowTemp", "--°") else "--°",
                                         humidity = if (jsonObject.has("humidity")) jsonObject.optString("humidity", "--%") else "--%",
-                                        windSpeed = if (jsonObject.has("windSpeed")) jsonObject.optString("windSpeed", "-- km/h") else "-- km/h"
+                                        windSpeed = if (jsonObject.has("windSpeed")) jsonObject.optString("windSpeed", "-- km/h") else "-- km/h",
+                                        feelsLike = if (jsonObject.has("feelsLike")) jsonObject.optString("feelsLike", "--°") else "--°"
                                     )
                                 } catch (e: Exception) {
                                     Log.e(TAG, "Error parsing weather result", e)
@@ -303,6 +305,7 @@ class WeatherUpdateWorker(private val context: Context, workerParams: WorkerPara
         val prefs = context.getSharedPreferences("FlutterSharedPreferences", Context.MODE_PRIVATE)
         prefs.edit()
             .putString("widget_$widgetId", weatherInfo.toJson())
+            .putLong("widget_${widgetId}_last_update", System.currentTimeMillis())
             .apply()
 
         Log.d(TAG, "Saved weather data for widget $widgetId")
@@ -317,7 +320,9 @@ class WeatherUpdateWorker(private val context: Context, workerParams: WorkerPara
     }
 
     private fun getCurrentTimeString(): String {
-        val sdf = SimpleDateFormat("h:mm a", Locale.getDefault())
+        val showSeconds = WidgetUpdateSettings.shouldShowSeconds(context)
+        val pattern = if (showSeconds) "h:mm:ss a" else "h:mm a"
+        val sdf = SimpleDateFormat(pattern, Locale.getDefault())
         return sdf.format(Date())
     }
 

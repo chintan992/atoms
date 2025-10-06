@@ -85,7 +85,15 @@ class WeatherWidgetProvider : AppWidgetProvider() {
     ) {
         Log.d(TAG, "Updating widget $appWidgetId")
 
-        val views = RemoteViews(context.packageName, R.layout.weather_widget)
+        // Determine widget size and select appropriate layout
+        val widgetSize = getWidgetSize(appWidgetManager, appWidgetId)
+        val layoutResId = getLayoutForSize(widgetSize)
+        
+        val views = RemoteViews(context.packageName, layoutResId)
+
+        // Set theme-appropriate background
+        val backgroundResId = getBackgroundForTheme(context)
+        views.setInt(R.id.widget_root, "setBackgroundResource", backgroundResId)
 
         // Set click intent to open main app
         val intent = Intent(context, MainActivity::class.java).apply {
@@ -100,7 +108,7 @@ class WeatherWidgetProvider : AppWidgetProvider() {
         views.setOnClickPendingIntent(R.id.widget_root, pendingIntent)
 
         // Update widget with current data
-        updateWidgetDisplay(context, views, appWidgetId)
+        updateWidgetDisplay(context, views, appWidgetId, widgetSize)
 
         // Update the widget
         appWidgetManager.updateAppWidget(appWidgetId, views)
@@ -118,14 +126,22 @@ class WeatherWidgetProvider : AppWidgetProvider() {
     private fun updateWidgetDisplay(
         context: Context,
         views: RemoteViews,
-        appWidgetId: Int
+        appWidgetId: Int,
+        widgetSize: WidgetSize
     ) {
         val prefs = context.getSharedPreferences("FlutterSharedPreferences", Context.MODE_PRIVATE)
         val widgetData = prefs.getString("widget_$appWidgetId", null)
+        val lastUpdateTime = prefs.getLong("widget_${appWidgetId}_last_update", 0L)
+        val currentTime = System.currentTimeMillis()
+        val dataAge = currentTime - lastUpdateTime
+        val maxAge = 30 * 60 * 1000L // 30 minutes
 
-        if (widgetData != null) {
+        // Use cached data if it's recent enough, otherwise show loading state
+        if (widgetData != null && dataAge < maxAge) {
             try {
+                Log.d(TAG, "Widget $appWidgetId using cached data (age: ${dataAge / 1000 / 60} minutes)")
                 val weatherInfo = WeatherInfo.fromJson(widgetData)
+                Log.d(TAG, "Widget $appWidgetId weather data: ${weatherInfo.temperature}, ${weatherInfo.condition}, ${weatherInfo.location}")
 
                 views.setTextViewText(R.id.temperature_text, weatherInfo.temperature)
                 views.setTextViewText(R.id.condition_text, weatherInfo.condition)
@@ -179,33 +195,73 @@ class WeatherWidgetProvider : AppWidgetProvider() {
                     views.setViewVisibility(R.id.wind_text, View.GONE)
                 }
 
-                Log.d(TAG, "Updated widget $appWidgetId with weather data")
+                // Handle feels like temperature (only for large widget)
+                if (widgetSize == WidgetSize.LARGE) {
+                    if (weatherInfo.feelsLike != null && weatherInfo.feelsLike != "null") {
+                        views.setTextViewText(R.id.feels_like_text, weatherInfo.feelsLike)
+                        views.setViewVisibility(R.id.feels_like_label, View.VISIBLE)
+                        views.setViewVisibility(R.id.feels_like_text, View.VISIBLE)
+                    } else {
+                        views.setViewVisibility(R.id.feels_like_label, View.GONE)
+                        views.setViewVisibility(R.id.feels_like_text, View.GONE)
+                    }
+                }
+
+                Log.d(TAG, "Updated widget $appWidgetId with weather data (age: ${dataAge / 1000 / 60} minutes)")
             } catch (e: Exception) {
                 Log.e(TAG, "Error parsing widget data for $appWidgetId", e)
-                setDefaultWidgetState(views)
+                setDefaultWidgetState(views, widgetSize)
             }
         } else {
-            setDefaultWidgetState(views)
+            // Show loading state for stale or missing data
+            if (widgetData != null) {
+                Log.d(TAG, "Widget $appWidgetId data is stale (age: ${dataAge / 1000 / 60} minutes), showing loading state")
+            } else {
+                Log.d(TAG, "No cached data for widget $appWidgetId, showing loading state")
+            }
+            setDefaultWidgetState(views, widgetSize)
         }
     }
 
-    private fun setDefaultWidgetState(views: RemoteViews) {
+    private fun setDefaultWidgetState(views: RemoteViews, widgetSize: WidgetSize) {
         views.setTextViewText(R.id.temperature_text, "--°")
         views.setTextViewText(R.id.condition_text, "Loading...")
         views.setTextViewText(R.id.location_text, "No location")
-        views.setTextViewText(R.id.last_updated_text, "")
         views.setImageViewResource(R.id.weather_icon, R.drawable.ic_weather_default)
         
-        // Show default values for additional weather details
-        views.setTextViewText(R.id.high_temp_text, "--°")
-        views.setTextViewText(R.id.humidity_text, "--%")
-        views.setTextViewText(R.id.wind_text, "-- km/h")
-        views.setViewVisibility(R.id.high_temp_label, View.VISIBLE)
-        views.setViewVisibility(R.id.high_temp_text, View.VISIBLE)
-        views.setViewVisibility(R.id.humidity_label, View.VISIBLE)
-        views.setViewVisibility(R.id.humidity_text, View.VISIBLE)
-        views.setViewVisibility(R.id.wind_label, View.VISIBLE)
-        views.setViewVisibility(R.id.wind_text, View.VISIBLE)
+        // Set default values based on widget size
+        when (widgetSize) {
+            WidgetSize.SMALL -> {
+                // Small widget only shows basic info
+            }
+            WidgetSize.MEDIUM -> {
+                views.setTextViewText(R.id.last_updated_text, "")
+                views.setTextViewText(R.id.high_temp_text, "--°")
+                views.setTextViewText(R.id.humidity_text, "--%")
+                views.setTextViewText(R.id.wind_text, "-- km/h")
+                views.setViewVisibility(R.id.high_temp_label, View.VISIBLE)
+                views.setViewVisibility(R.id.high_temp_text, View.VISIBLE)
+                views.setViewVisibility(R.id.humidity_label, View.VISIBLE)
+                views.setViewVisibility(R.id.humidity_text, View.VISIBLE)
+                views.setViewVisibility(R.id.wind_label, View.VISIBLE)
+                views.setViewVisibility(R.id.wind_text, View.VISIBLE)
+            }
+            WidgetSize.LARGE -> {
+                views.setTextViewText(R.id.last_updated_text, "")
+                views.setTextViewText(R.id.high_temp_text, "--° / --°")
+                views.setTextViewText(R.id.humidity_text, "--%")
+                views.setTextViewText(R.id.wind_text, "-- km/h")
+                views.setTextViewText(R.id.feels_like_text, "--°")
+                views.setViewVisibility(R.id.high_temp_label, View.VISIBLE)
+                views.setViewVisibility(R.id.high_temp_text, View.VISIBLE)
+                views.setViewVisibility(R.id.humidity_label, View.VISIBLE)
+                views.setViewVisibility(R.id.humidity_text, View.VISIBLE)
+                views.setViewVisibility(R.id.wind_label, View.VISIBLE)
+                views.setViewVisibility(R.id.wind_text, View.VISIBLE)
+                views.setViewVisibility(R.id.feels_like_label, View.VISIBLE)
+                views.setViewVisibility(R.id.feels_like_text, View.VISIBLE)
+            }
+        }
     }
 
     private fun scheduleNextUpdate(context: Context) {
@@ -224,5 +280,47 @@ class WeatherWidgetProvider : AppWidgetProvider() {
         WeatherUpdateWorker.cancelPeriodicWork(context)
 
         Log.d(TAG, "Cancelled WorkManager scheduled updates")
+    }
+
+    private enum class WidgetSize {
+        SMALL, MEDIUM, LARGE
+    }
+
+    private fun getWidgetSize(appWidgetManager: AppWidgetManager, appWidgetId: Int): WidgetSize {
+        val options = appWidgetManager.getAppWidgetOptions(appWidgetId)
+        val minWidth = options.getInt(AppWidgetManager.OPTION_APPWIDGET_MIN_WIDTH)
+        val minHeight = options.getInt(AppWidgetManager.OPTION_APPWIDGET_MIN_HEIGHT)
+        
+        // Determine size based on dimensions
+        return when {
+            minWidth <= 110 && minHeight <= 40 -> WidgetSize.SMALL
+            minWidth <= 180 && minHeight <= 110 -> WidgetSize.MEDIUM
+            else -> WidgetSize.LARGE
+        }
+    }
+
+    private fun getLayoutForSize(widgetSize: WidgetSize): Int {
+        return when (widgetSize) {
+            WidgetSize.SMALL -> R.layout.weather_widget_small
+            WidgetSize.MEDIUM -> R.layout.weather_widget_medium
+            WidgetSize.LARGE -> R.layout.weather_widget_large
+        }
+    }
+
+    private fun getBackgroundForTheme(context: Context): Int {
+        val themeMode = WidgetUpdateSettings.getThemeMode(context)
+        val isDarkMode = when (themeMode) {
+            WidgetUpdateSettings.THEME_DARK -> true
+            WidgetUpdateSettings.THEME_LIGHT -> false
+            WidgetUpdateSettings.THEME_AUTO -> {
+                // Check system theme
+                val nightModeFlags = context.resources.configuration.uiMode and 
+                    android.content.res.Configuration.UI_MODE_NIGHT_MASK
+                nightModeFlags == android.content.res.Configuration.UI_MODE_NIGHT_YES
+            }
+            else -> false
+        }
+        
+        return if (isDarkMode) R.drawable.widget_background_dark else R.drawable.widget_background_light
     }
 }
