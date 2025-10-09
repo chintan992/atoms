@@ -9,6 +9,7 @@ import 'package:atmos/providers/weather_provider.dart';
 import 'package:atmos/ui/screens/home_screen.dart';
 import 'package:atmos/ui/screens/search_screen.dart';
 import 'package:atmos/ui/screens/settings_screen.dart';
+import 'package:atmos/ui/screens/alerts_screen.dart';
 import 'package:atmos/ui/theme/glass_theme.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -33,7 +34,7 @@ void main() async {
   // Store API key in shared preferences for widget access
   final prefs = await SharedPreferences.getInstance();
   await prefs.setString('WEATHER_API_KEY', AppConfig.weatherApiKey); // Will be stored as 'flutter.WEATHER_API_KEY'
-  print('Stored API key for widgets: ${AppConfig.weatherApiKey.isNotEmpty ? "${AppConfig.weatherApiKey.substring(0, 8)}..." : "EMPTY"}');
+debugPrint('Stored API key for widgets: ${AppConfig.weatherApiKey.isNotEmpty ? '${AppConfig.weatherApiKey.substring(0, 8)}...' : 'EMPTY'}');
 
   // Initialize current location if available
   await _initializeCurrentLocation(prefs);
@@ -53,7 +54,7 @@ Future<void> _initializeCurrentLocation(SharedPreferences prefs) async {
     // Ensure location services are enabled
     final serviceEnabled = await Geolocator.isLocationServiceEnabled();
     if (!serviceEnabled) {
-      print('Location services are disabled; cannot initialize current location.');
+debugPrint('Location services are disabled; cannot initialize current location.');
       return;
     }
 
@@ -63,7 +64,7 @@ Future<void> _initializeCurrentLocation(SharedPreferences prefs) async {
       permission = await Geolocator.requestPermission();
     }
     if (permission == LocationPermission.deniedForever || permission == LocationPermission.denied) {
-      print('Precise location permission not granted; cannot initialize current location.');
+debugPrint('Precise location permission not granted; cannot initialize current location.');
       return;
     }
 
@@ -77,9 +78,9 @@ Future<void> _initializeCurrentLocation(SharedPreferences prefs) async {
     await prefs.setString('flutter.current_location_lat', position.latitude.toString());
     await prefs.setString('flutter.current_location_lon', position.longitude.toString());
 
-    print('Stored current location (high accuracy): ${position.latitude}, ${position.longitude} (±${position.accuracy}m)');
+debugPrint('Stored current location (high accuracy): ${position.latitude}, ${position.longitude} (±${position.accuracy}m)');
   } catch (e) {
-    print('Failed to get high-accuracy current location for widget: $e');
+debugPrint('Failed to get high-accuracy current location for widget: $e');
     // Don't throw error, just continue without current location
   }
 }
@@ -112,14 +113,14 @@ void _setupCurrentLocationChannel() {
                 await prefs.setString('flutter.current_location_lon', position.longitude.toString());
                 return '${position.latitude},${position.longitude}';
               } catch (e) {
-                print('High-accuracy getCurrentPosition failed: $e');
+debugPrint('High-accuracy getCurrentPosition failed: $e');
                 // fall back to stored coords
               }
             } else {
-              print('Location permission denied for precise location.');
+debugPrint('Location permission denied for precise location.');
             }
           } else {
-            print('Location services are disabled.');
+debugPrint('Location services are disabled.');
           }
 
           // Fall back to stored coordinates if available
@@ -130,7 +131,7 @@ void _setupCurrentLocationChannel() {
           }
           return null;
         } catch (e) {
-          print('Error getting current location: $e');
+          debugPrint('Error getting current location: $e');
           return null;
         }
       default:
@@ -210,9 +211,9 @@ Future<String> _handleGetWeatherForWidget(MethodCall call) async {
         final prefs = await SharedPreferences.getInstance();
         await prefs.setString('flutter.current_location_lat', position.latitude.toString());
         await prefs.setString('flutter.current_location_lon', position.longitude.toString());
-        print('Using current high-accuracy location: $location (±${position.accuracy}m)');
+        debugPrint('Using current high-accuracy location: $location (±${position.accuracy}m)');
       } catch (e) {
-        print('Failed to get high-accuracy current location: $e');
+        debugPrint('Failed to get high-accuracy current location: $e');
         // Fallback to stored coordinates or a default city
         final prefs = await SharedPreferences.getInstance();
         final lat = prefs.getString('flutter.current_location_lat');
@@ -234,7 +235,7 @@ Future<String> _handleGetWeatherForWidget(MethodCall call) async {
     WeatherData? currentWeatherData;
 
     try {
-      enhancedWeatherData = await weatherRepository.getWeatherWithForecast(location, days: 1);
+      enhancedWeatherData = await weatherRepository.getWeatherWithForecast(location, opts: WeatherRequestOptions(days: 1));
     } catch (e) {
       // If forecast API fails, try to get just current weather
       try {
@@ -415,6 +416,7 @@ class AtmosWeatherApp extends StatelessWidget {
           '/': (context) => const HomeScreen(),
           '/search': (context) => const SearchScreen(),
           '/settings': (context) => const SettingsScreen(),
+          '/alerts': (context) => const AlertsScreen(),
         },
       ),
     );

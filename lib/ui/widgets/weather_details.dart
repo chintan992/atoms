@@ -14,6 +14,7 @@ class WeatherDetails extends StatelessWidget {
     return Consumer<SettingsProvider>(
       builder: (context, settingsProvider, child) {
         final current = weatherData.current;
+        final showAQI = context.read<SettingsProvider>().showAirQuality;
 
         return Padding(
           padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -90,6 +91,20 @@ class WeatherDetails extends StatelessWidget {
                     '${current.cloud}%',
                     Icons.cloud,
                   ),
+                  if (showAQI && current.airQuality != null)
+                    _buildDetailCard(
+                      context,
+                      'US EPA AQI',
+                      (current.airQuality!.usEpaIndex ?? 0).toString(),
+                      Icons.health_and_safety,
+                    ),
+                  if (current.airQuality != null)
+                    _buildDetailCard(
+                      context,
+                      'PM2.5',
+                      '${(current.airQuality!.pm2_5 ?? 0).toStringAsFixed(1)} µg/m³',
+                      Icons.blur_on,
+                    ),
                 ],
               ),
             ],

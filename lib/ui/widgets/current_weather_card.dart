@@ -15,6 +15,7 @@ class CurrentWeatherCard extends StatelessWidget {
       builder: (context, settingsProvider, child) {
         final current = weatherData.current;
         final location = weatherData.location;
+        final showAQI = context.read<SettingsProvider>().showAirQuality;
 
         return GlassCard(
           child: Column(
@@ -165,6 +166,33 @@ class CurrentWeatherCard extends StatelessWidget {
                   ),
                 ],
               ),
+              if (showAQI && current.airQuality != null) ...[
+                const SizedBox(height: 12),
+                Row(
+                  children: [
+                    _buildInfoChip(
+                      context,
+                      Icons.health_and_safety,
+                      (current.airQuality!.usEpaIndex ?? 0).toString(),
+                      'US EPA AQI',
+                    ),
+                    const SizedBox(width: 12),
+                    _buildInfoChip(
+                      context,
+                      Icons.blur_on,
+                      '${(current.airQuality!.pm2_5 ?? 0).toStringAsFixed(1)} µg/m³',
+                      'PM2.5',
+                    ),
+                    const SizedBox(width: 12),
+                    _buildInfoChip(
+                      context,
+                      Icons.blur_on,
+                      '${(current.airQuality!.pm10 ?? 0).toStringAsFixed(1)} µg/m³',
+                      'PM10',
+                    ),
+                  ],
+                ),
+              ],
             ],
           ),
         );

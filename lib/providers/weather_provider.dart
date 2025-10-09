@@ -14,15 +14,22 @@ class WeatherProvider extends ChangeNotifier {
   String? _errorMessage;
   String _currentLocation = 'Current Location'; // Default location
 
-  final WeatherRepository _weatherRepository;
+  // Forecast + alerts state
+  EnhancedWeatherData? _forecastData;
+  bool _alertsLoading = false;
+
+  final IWeatherRepository _weatherRepository;
 
   WeatherState get state => _state;
   WeatherData? get weatherData => _weatherData;
   String? get errorMessage => _errorMessage;
   String get currentLocation => _currentLocation;
+  EnhancedWeatherData? get forecastData => _forecastData;
+  List<WeatherAlert> get alerts => _forecastData?.alerts ?? const [];
+  bool get alertsLoading => _alertsLoading;
 
-  WeatherProvider()
-      : _weatherRepository = WeatherRepository(WeatherService(), WeatherStorage());
+  WeatherProvider({IWeatherRepository? repository})
+      : _weatherRepository = repository ?? WeatherRepository(WeatherService(), WeatherStorage());
 
   Future<void> loadWeatherData({String? location}) async {
     _state = WeatherState.loading;
@@ -108,12 +115,48 @@ class WeatherProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  Future<EnhancedWeatherData?> loadForecastData({String? location, int days = 3}) async {
+  Future<EnhancedWeatherData?> loadForecastData({String? location, int days = 3, bool includeAqi = false, bool includeAlerts = false, String? lang}) async {
     try {
       final currentLocation = location ?? _currentLocation;
-      return await _weatherRepository.getWeatherWithForecast(currentLocation, days: days);
+      final opts = WeatherRequestOptions(days: days, includeAqi: includeAqi, includeAlerts: includeAlerts, lang: lang);
+      final data = await _weatherRepository.getWeatherWithForecast(currentLocation, opts: opts);
+      _forecastData = data;
+      if (kDebugMode) {
+        debugPrint('Forecast loaded for $currentLocation: days=${data.forecast?.forecastday.length ?? 0}');
+      }
+      notifyListeners();
+      return data;
     } catch (e) {
+      if (kDebugMode) {
+        debugPrint('Forecast load failed: $e');
+      }
       // Return null if forecast data fails, don't update UI state
+      return null;
+    }
+  }
+
+  Future<void> loadAlertsForCurrentLocation({int days = 1, String? lang}) async {
+    _alertsLoading = true;
+    notifyListeners();
+    try {
+      final opts = WeatherRequestOptions(days: days, includeAlerts: true, lang: lang);
+      _forecastData = await _weatherRepository.getWeatherWithForecast(_currentLocation, opts: opts);
+    } catch (_) {
+      // keep previous alerts if any
+    } finally {
+      _alertsLoading = false;
+      notifyListeners();
+    }
+  }
+
+  Future<EnhancedWeatherData?> loadForecastByCoordinates(double lat, double lon, {int days = 3, bool includeAqi = false, bool includeAlerts = false, String? lang}) async {
+    try {
+      final opts = WeatherRequestOptions(days: days, includeAqi: includeAqi, includeAlerts: includeAlerts, lang: lang);
+      final data = await _weatherRepository.getWeatherWithForecastByCoordinates(lat, lon, opts: opts);
+      _forecastData = data;
+      notifyListeners();
+      return data;
+    } catch (e) {
       return null;
     }
   }

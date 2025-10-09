@@ -11,6 +11,8 @@ class SettingsProvider extends ChangeNotifier {
   int _updateIntervalMinutes = AppConfig.defaultUpdateIntervalMinutes;
   bool _widgetShowLocation = AppConfig.widgetShowLocation;
   bool _widgetShowCondition = AppConfig.widgetShowCondition;
+  bool _showAirQuality = AppConfig.defaultIncludeAqi;
+  bool _showAlerts = AppConfig.defaultIncludeAlerts;
   bool _isLoading = false;
 
   TemperatureUnit get temperatureUnit => _temperatureUnit;
@@ -21,6 +23,8 @@ class SettingsProvider extends ChangeNotifier {
   int get updateIntervalMinutes => _updateIntervalMinutes;
   bool get widgetShowLocation => _widgetShowLocation;
   bool get widgetShowCondition => _widgetShowCondition;
+  bool get showAirQuality => _showAirQuality;
+  bool get showAlerts => _showAlerts;
   bool get isLoading => _isLoading;
 
   SettingsProvider() {
@@ -56,6 +60,10 @@ class SettingsProvider extends ChangeNotifier {
       // Load widget settings
       _widgetShowLocation = prefs.getBool('widget_show_location') ?? AppConfig.widgetShowLocation;
       _widgetShowCondition = prefs.getBool('widget_show_condition') ?? AppConfig.widgetShowCondition;
+
+      // Load feature toggles
+      _showAirQuality = prefs.getBool('show_air_quality') ?? AppConfig.defaultIncludeAqi;
+      _showAlerts = prefs.getBool('show_alerts') ?? AppConfig.defaultIncludeAlerts;
 
     } catch (e) {
       // Use default values if loading fails
@@ -156,6 +164,32 @@ class SettingsProvider extends ChangeNotifier {
     } catch (e) {
       // Revert on error
       _widgetShowLocation = AppConfig.widgetShowLocation;
+      notifyListeners();
+    }
+  }
+
+  Future<void> setShowAirQuality(bool show) async {
+    if (_showAirQuality == show) return;
+    _showAirQuality = show;
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setBool('show_air_quality', show);
+      notifyListeners();
+    } catch (e) {
+      _showAirQuality = AppConfig.defaultIncludeAqi;
+      notifyListeners();
+    }
+  }
+
+  Future<void> setShowAlerts(bool show) async {
+    if (_showAlerts == show) return;
+    _showAlerts = show;
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setBool('show_alerts', show);
+      notifyListeners();
+    } catch (e) {
+      _showAlerts = AppConfig.defaultIncludeAlerts;
       notifyListeners();
     }
   }

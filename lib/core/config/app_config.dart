@@ -65,6 +65,20 @@ class AppConfig {
     return int.tryParse(dotenv.env['MAX_FORECAST_DAYS'] ?? '3') ?? 3;
   }
 
+  // New defaults for feature flags
+  static bool get defaultIncludeAqi {
+    return dotenv.env['DEFAULT_INCLUDE_AQI']?.toLowerCase() == 'true';
+  }
+
+  static bool get defaultIncludeAlerts {
+    return dotenv.env['DEFAULT_INCLUDE_ALERTS']?.toLowerCase() == 'true';
+  }
+
+  static String? get defaultLanguage {
+    final lang = dotenv.env['DEFAULT_LANGUAGE'];
+    return (lang != null && lang.isNotEmpty) ? lang : null;
+  }
+
   // Widget Settings
   static int get widgetUpdateIntervalMinutes {
     return int.tryParse(dotenv.env['WIDGET_UPDATE_INTERVAL_MINUTES'] ?? '60') ?? 60;
@@ -166,6 +180,9 @@ class AppConfig {
       debugPrint('API Base URL: $weatherApiBaseUrl');
       debugPrint('Default Temperature Unit: $defaultTemperatureUnit');
       debugPrint('Default Update Interval: $defaultUpdateIntervalMinutes minutes');
+      debugPrint('Default Include AQI: $defaultIncludeAqi');
+      debugPrint('Default Include Alerts: $defaultIncludeAlerts');
+      debugPrint('Default Language: ${defaultLanguage ?? 'system'}');
       debugPrint('Debug Mode: $debugMode');
       debugPrint('Log Level: $logLevel');
       debugPrint('===============================');

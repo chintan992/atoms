@@ -15,21 +15,55 @@ class ApiClient {
 
     // Base configuration
     dio.options.baseUrl = AppConfig.weatherApiBaseUrl;
-    dio.options.connectTimeout = const Duration(seconds: 30);
-    dio.options.receiveTimeout = const Duration(seconds: 30);
-    dio.options.sendTimeout = const Duration(seconds: 30);
+    final timeout = Duration(seconds: AppConfig.weatherRequestTimeoutSeconds);
+    dio.options.connectTimeout = timeout;
+    dio.options.receiveTimeout = timeout;
+    dio.options.sendTimeout = timeout;
 
-    // Add API key to all requests
+    // Add API key to all requests and apply defaults when not provided
     dio.interceptors.add(InterceptorsWrapper(
       onRequest: (options, handler) {
         options.queryParameters['key'] = AppConfig.weatherApiKey;
+        // Apply default language if caller hasn't set one
+        if (AppConfig.defaultLanguage != null && options.queryParameters['lang'] == null) {
+          options.queryParameters['lang'] = AppConfig.defaultLanguage;
+        }
+        // Apply default AQI/alerts if caller hasn't set them
+        if (AppConfig.defaultIncludeAqi && options.queryParameters['aqi'] == null) {
+          options.queryParameters['aqi'] = 'yes';
+        }
+        if (AppConfig.defaultIncludeAlerts && options.queryParameters['alerts'] == null) {
+          options.queryParameters['alerts'] = 'yes';
+        }
+        // Identify client
+        options.headers['User-Agent'] = 'AtmosApp/"${AppConfig.appVersion}"';
         handler.next(options);
       },
     ));
 
-    // Error handling interceptor
+    // Simple retry interceptor for transient errors
     dio.interceptors.add(InterceptorsWrapper(
-      onError: (DioException e, handler) {
+      onError: (DioException e, handler) async {
+        final reqOptions = e.requestOptions;
+        final extra = reqOptions.extra;
+        final attempt = (extra['retry_attempt'] as int?) ?? 0;
+        final canRetryType = e.type == DioExceptionType.connectionTimeout ||
+            e.type == DioExceptionType.receiveTimeout ||
+            e.type == DioExceptionType.sendTimeout ||
+            e.type == DioExceptionType.unknown;
+        final status = e.response?.statusCode ?? 0;
+        final canRetryStatus = status >= 500 || status == 429;
+        if (attempt < 2 && (canRetryType || canRetryStatus)) {
+          final backoffFactor = (1 << attempt); // 1, 2
+          await Future.delayed(Duration(milliseconds: 300 * backoffFactor));
+          reqOptions.extra = Map.of(extra)..['retry_attempt'] = attempt + 1;
+          try {
+            final response = await dio.fetch(reqOptions);
+            return handler.resolve(response);
+          } catch (err) {
+            // fallthrough to error handling
+          }
+        }
         _handleError(e);
         handler.next(e);
       },

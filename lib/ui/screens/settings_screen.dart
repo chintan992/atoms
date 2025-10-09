@@ -107,6 +107,44 @@ class SettingsScreen extends StatelessWidget {
                   ),
                   const SizedBox(height: 16),
 
+                  // Weather Data Options
+                  GlassCard(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Weather Data Options',
+                          style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                            fontWeight: FontWeight.bold,
+                            color: Colors.white,
+                          ),
+                        ),
+                        const SizedBox(height: 12),
+                        SwitchListTile(
+                          value: settingsProvider.showAirQuality,
+                          onChanged: (v) => settingsProvider.setShowAirQuality(v),
+                          title: const Text('Show Air Quality'),
+                          subtitle: const Text('Display AQI and particulates if available'),
+                          activeThumbColor: Colors.white,
+                          activeTrackColor: Colors.white54,
+                          inactiveThumbColor: Colors.white,
+                          inactiveTrackColor: Colors.white24,
+                        ),
+                        SwitchListTile(
+                          value: settingsProvider.showAlerts,
+                          onChanged: (v) => settingsProvider.setShowAlerts(v),
+                          title: const Text('Show Weather Alerts'),
+                          subtitle: const Text('Show alert banner when alerts are present'),
+                          activeThumbColor: Colors.white,
+                          activeTrackColor: Colors.white54,
+                          inactiveThumbColor: Colors.white,
+                          inactiveTrackColor: Colors.white24,
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+
                   // About Section
                   GlassCard(
                     child: Column(

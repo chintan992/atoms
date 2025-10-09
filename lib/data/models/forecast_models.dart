@@ -1,6 +1,55 @@
 import 'package:equatable/equatable.dart';
 import 'weather_models.dart';
 
+/// Weather alert model
+class WeatherAlert extends Equatable {
+  final String headline;
+  final String event;
+  final String severity;
+  final String areas;
+  final String? description;
+  final DateTime? effective;
+  final DateTime? expires;
+
+  const WeatherAlert({
+    required this.headline,
+    required this.event,
+    required this.severity,
+    required this.areas,
+    this.description,
+    this.effective,
+    this.expires,
+  });
+
+  @override
+  List<Object?> get props => [headline, event, severity, areas, description, effective, expires];
+
+  factory WeatherAlert.fromJson(Map<String, dynamic> json) {
+    DateTime? parseDate(String? s) => s != null && s.isNotEmpty ? DateTime.tryParse(s) : null;
+    return WeatherAlert(
+      headline: json['headline'] ?? json['event'] ?? '',
+      event: json['event'] ?? '',
+      severity: json['severity'] ?? '',
+      areas: json['areas'] ?? '',
+      description: json['desc'] ?? json['description'],
+      effective: parseDate(json['effective']),
+      expires: parseDate(json['expires']),
+    );
+  }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'headline': headline,
+      'event': event,
+      'severity': severity,
+      'areas': areas,
+      'desc': description,
+      'effective': effective?.toIso8601String(),
+      'expires': expires?.toIso8601String(),
+    };
+  }
+}
+
 /// Astro data model
 class Astro extends Equatable {
   final String sunrise;
@@ -74,7 +123,7 @@ class ForecastDay extends Equatable {
   final int dailyChanceOfRain;
   final int dailyWillItSnow;
   final int dailyChanceOfSnow;
-  final int uv;
+  final double uv;
   final WeatherCondition condition;
   final List<HourForecast> hour;
 
@@ -153,7 +202,7 @@ class ForecastDay extends Equatable {
       dailyChanceOfRain: json['day']['daily_chance_of_rain'] ?? 0,
       dailyWillItSnow: json['day']['daily_will_it_snow'] ?? 0,
       dailyChanceOfSnow: json['day']['daily_chance_of_snow'] ?? 0,
-      uv: json['day']['uv'] ?? 0,
+      uv: (json['day']['uv'] ?? 0).toDouble(),
       condition: WeatherCondition.fromJson(json['day']['condition'] ?? {}),
       hour: (json['hour'] as List<dynamic>?)
           ?.map((hourItem) => HourForecast.fromJson(hourItem))
@@ -406,21 +455,47 @@ class EnhancedWeatherData extends Equatable {
   final Location location;
   final CurrentWeather current;
   final Forecast? forecast;
+  final List<WeatherAlert>? alerts;
 
   const EnhancedWeatherData({
     required this.location,
     required this.current,
     this.forecast,
+    this.alerts,
   });
 
   @override
-  List<Object?> get props => [location, current, forecast];
+  List<Object?> get props => [location, current, forecast, alerts];
 
   factory EnhancedWeatherData.fromJson(Map<String, dynamic> json) {
+    List<WeatherAlert>? parseAlerts(dynamic alertsValue) {
+      if (alertsValue == null) return null;
+      // WeatherAPI may return either {"alert": [...]} or [] when none
+      if (alertsValue is List) {
+        if (alertsValue.isEmpty) return const [];
+        return alertsValue
+            .whereType<Map<String, dynamic>>()
+            .map((e) => WeatherAlert.fromJson(e))
+            .toList();
+      }
+      if (alertsValue is Map<String, dynamic>) {
+        final list = alertsValue['alert'];
+        if (list is List) {
+          return list
+              .whereType<Map<String, dynamic>>()
+              .map((e) => WeatherAlert.fromJson(e))
+              .toList();
+        }
+        return const [];
+      }
+      return const [];
+    }
+
     return EnhancedWeatherData(
       location: Location.fromJson(json['location'] ?? {}),
       current: CurrentWeather.fromJson(json['current'] ?? {}),
       forecast: json['forecast'] != null ? Forecast.fromJson(json['forecast']) : null,
+      alerts: parseAlerts(json['alerts']),
     );
   }
 
@@ -429,6 +504,7 @@ class EnhancedWeatherData extends Equatable {
       'location': location.toJson(),
       'current': current.toJson(),
       'forecast': forecast?.toJson(),
+      'alerts': alerts?.map((a) => a.toJson()).toList(),
     };
   }
 }

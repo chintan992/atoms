@@ -1,5 +1,57 @@
 import 'package:equatable/equatable.dart';
 
+/// Air quality data model (returned when aqi=yes)
+class AirQuality extends Equatable {
+  final double? co;
+  final double? no2;
+  final double? o3;
+  final double? so2;
+  final double? pm2_5;
+  final double? pm10;
+  final int? usEpaIndex;
+  final int? gbDefraIndex;
+
+  const AirQuality({
+    this.co,
+    this.no2,
+    this.o3,
+    this.so2,
+    this.pm2_5,
+    this.pm10,
+    this.usEpaIndex,
+    this.gbDefraIndex,
+  });
+
+  @override
+  List<Object?> get props => [co, no2, o3, so2, pm2_5, pm10, usEpaIndex, gbDefraIndex];
+
+  factory AirQuality.fromJson(Map<String, dynamic> json) {
+    return AirQuality(
+      co: (json['co'] as num?)?.toDouble(),
+      no2: (json['no2'] as num?)?.toDouble(),
+      o3: (json['o3'] as num?)?.toDouble(),
+      so2: (json['so2'] as num?)?.toDouble(),
+      pm2_5: (json['pm2_5'] as num?)?.toDouble(),
+      pm10: (json['pm10'] as num?)?.toDouble(),
+      usEpaIndex: json['us-epa-index'] as int?,
+      gbDefraIndex: json['gb-defra-index'] as int?,
+    );
+  }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'co': co,
+      'no2': no2,
+      'o3': o3,
+      'so2': so2,
+      'pm2_5': pm2_5,
+      'pm10': pm10,
+      'us-epa-index': usEpaIndex,
+      'gb-defra-index': gbDefraIndex,
+    };
+  }
+}
+
 /// Main weather condition model
 class WeatherCondition extends Equatable {
   final String text;
@@ -54,6 +106,7 @@ class CurrentWeather extends Equatable {
   final double gustMph;
   final double gustKph;
   final int isDay;
+  final AirQuality? airQuality;
   // Additional fields that might be present in forecast data
   final double? maxtempC;
   final double? maxtempF;
@@ -83,6 +136,7 @@ class CurrentWeather extends Equatable {
     required this.gustMph,
     required this.gustKph,
     required this.isDay,
+    this.airQuality,
     this.maxtempC,
     this.maxtempF,
     this.mintempC,
@@ -95,8 +149,8 @@ class CurrentWeather extends Equatable {
   List<Object?> get props => [
     tempC, tempF, condition, windMph, windKph, windDir, pressureMb,
     pressureIn, precipMm, precipIn, humidity, cloud, feelslikeC,
-    feelslikeF, visKm, visMiles, uv, gustMph, gustKph, isDay, maxtempC,
-    maxtempF, mintempC, mintempF, avgtempC, avgtempF
+    feelslikeF, visKm, visMiles, uv, gustMph, gustKph, isDay, airQuality,
+    maxtempC, maxtempF, mintempC, mintempF, avgtempC, avgtempF
   ];
 
   factory CurrentWeather.fromJson(Map<String, dynamic> json) {
@@ -121,6 +175,7 @@ class CurrentWeather extends Equatable {
       gustMph: (json['gust_mph'] ?? 0).toDouble(),
       gustKph: (json['gust_kph'] ?? 0).toDouble(),
       isDay: json['is_day'] ?? 1, // Default to day if not specified
+      airQuality: json['air_quality'] != null ? AirQuality.fromJson(json['air_quality']) : null,
       // Additional fields for forecast data
       maxtempC: json['maxtemp_c'] != null ? (json['maxtemp_c'] as num).toDouble() : null,
       maxtempF: json['maxtemp_f'] != null ? (json['maxtemp_f'] as num).toDouble() : null,
@@ -149,10 +204,11 @@ class CurrentWeather extends Equatable {
       'feelslike_f': feelslikeF,
       'vis_km': visKm,
       'vis_miles': visMiles,
-      'uv': uv,
+'uv': uv,
       'gust_mph': gustMph,
       'gust_kph': gustKph,
       'is_day': isDay,
+      'air_quality': airQuality?.toJson(),
       // Additional forecast fields
       'maxtemp_c': maxtempC,
       'maxtemp_f': maxtempF,
